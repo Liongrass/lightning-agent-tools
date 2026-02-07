@@ -1,0 +1,34 @@
+# golangci-lint configuration for MCP LNC Server.
+run:
+  timeout: 3m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gofmt
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unused
+    - whitespace
+
+linters-settings:
+  gocyclo:
+    min-complexity: 20
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: true
+  exclude-dirs:
+    - external
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
