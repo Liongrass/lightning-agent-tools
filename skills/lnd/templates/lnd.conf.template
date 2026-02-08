@@ -78,3 +78,13 @@ autopilot.active=false
 [tor]
 # Tor disabled by default. Enable for privacy.
 tor.active=false
+
+
+# [remotesigner]
+# Enable remote signer for watch-only mode. When enabled, this node delegates
+# all signing to a remote signer node and holds no private key material.
+# Uncommented and configured automatically by start-lnd.sh --mode watchonly.
+# remotesigner.enable=true
+# remotesigner.rpchost=SIGNER_RPC_HOST
+# remotesigner.tlscertpath=SIGNER_TLS_CERT
+# remotesigner.macaroonpath=SIGNER_MACAROON

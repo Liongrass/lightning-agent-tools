@@ -1,6 +1,6 @@
 ---
 name: lnd
-description: Install and run lnd Lightning Network daemon natively with neutrino backend and SQLite storage. Use when setting up a Lightning node for payments, managing wallets, opening channels, paying invoices, or enabling an agent to send/receive Lightning payments for L402 commerce.
+description: Install and run lnd Lightning Network daemon natively with neutrino backend and SQLite storage. Defaults to watch-only mode with remote signer for secure agent operation. Use when setting up a Lightning node for payments, managing wallets, opening channels, paying invoices, or enabling an agent to send/receive Lightning payments for L402 commerce.
 ---
 
 # LND Lightning Network Node
@@ -9,22 +9,52 @@ Install and operate an lnd Lightning Network node for agent-driven payments.
 Defaults to neutrino (light client) backend with SQLite storage for minimal
 setup — no full Bitcoin node required.
 
-## Quick Start
+**Default mode: watch-only with remote signer.** Private keys stay on a
+separate signer machine — the agent never touches key material. For quick
+testing, use `--mode standalone` (keys on disk, less secure).
+
+## Quick Start (Watch-Only — Recommended)
+
+Requires a signer set up with the `lightning-security-module` skill.
 
 ```bash
 # 1. Install lnd
-SKILL_DIR="$(dirname "$(readlink -f "$0")" 2>/dev/null || echo "skills/lnd")"
-"${SKILL_DIR}/scripts/install.sh"
+skills/lnd/scripts/install.sh
 
-# 2. Create encrypted wallet
-"${SKILL_DIR}/scripts/create-wallet.sh"
+# 2. Import credentials from signer (see lightning-security-module skill)
+skills/lnd/scripts/import-credentials.sh --bundle <credentials-bundle>
+
+# 3. Create watch-only wallet (needs signer host — lnd must connect to signer during wallet creation)
+skills/lnd/scripts/create-wallet.sh --signer-host <signer-ip>:10012
+
+# 4. Start lnd (connects to remote signer)
+skills/lnd/scripts/start-lnd.sh --signer-host <signer-ip>:10012
+
+# 5. Check status
+skills/lnd/scripts/lncli.sh getinfo
+```
+
+## Quick Start (Standalone — Testing Only)
+
+For quick testing where security is not a concern. Keys are stored on disk.
+
+```bash
+# 1. Install lnd
+skills/lnd/scripts/install.sh
+
+# 2. Create wallet (generates seed locally)
+skills/lnd/scripts/create-wallet.sh --mode standalone
 
 # 3. Start lnd
-"${SKILL_DIR}/scripts/start-lnd.sh"
+skills/lnd/scripts/start-lnd.sh --mode standalone
 
 # 4. Check status
-"${SKILL_DIR}/scripts/lncli.sh" getinfo
+skills/lnd/scripts/lncli.sh getinfo
 ```
+
+> **Warning:** Standalone mode stores the seed mnemonic and wallet passphrase on
+> disk. Any process running as the same user can read them. Do not use for
+> mainnet funds you cannot afford to lose.
 
 ## Installation
 
@@ -49,10 +79,31 @@ go install -tags "signrpc walletrpc chainrpc invoicesrpc routerrpc peersrpc kvdb
 
 ## Wallet Setup
 
-### Create an Encrypted Wallet
+### Watch-Only Wallet (Default)
+
+Imports account xpubs from the remote signer — no seed or private keys on this
+machine.
 
 ```bash
+# Import credentials bundle from signer
+skills/lnd/scripts/import-credentials.sh --bundle <credentials-bundle>
+
+# Create watch-only wallet
 skills/lnd/scripts/create-wallet.sh
+```
+
+The credentials bundle is produced by the `lightning-security-module` skill's
+`export-credentials.sh` script. It contains:
+- `accounts.json` — account xpubs for watch-only import
+- `tls.cert` — signer's TLS certificate
+- `admin.macaroon` — signer's admin macaroon
+
+### Standalone Wallet
+
+Generates a seed locally and stores it on disk. Use only for testing.
+
+```bash
+skills/lnd/scripts/create-wallet.sh --mode standalone
 ```
 
 This handles the full wallet creation flow:
@@ -75,13 +126,8 @@ create-wallet.sh --lnddir ~/.lnd-agent
 create-wallet.sh --network mainnet
 
 # Custom passphrase (instead of auto-generated)
-create-wallet.sh --password "your-passphrase-here"
+create-wallet.sh --mode standalone --password "your-passphrase-here"
 ```
-
-> **Security note:** The seed mnemonic on disk is a temporary convenience for
-> agent automation. For production use with real funds, migrate to lnd's remote
-> signer mode where the seed is held on a separate signing device. See
-> [references/security.md](references/security.md) for details.
 
 ### Unlock Wallet
 
@@ -95,10 +141,10 @@ This reads the passphrase from `~/.lnget/lnd/wallet-password.txt` and calls the
 lnd REST API to unlock. Alternatively, lnd can auto-unlock on start using the
 `wallet-unlock-password-file` config option (included in the default template).
 
-### Recover Wallet from Seed
+### Recover Wallet from Seed (Standalone Only)
 
 ```bash
-skills/lnd/scripts/create-wallet.sh --recover --seed-file ~/.lnget/lnd/seed.txt
+skills/lnd/scripts/create-wallet.sh --mode standalone --recover --seed-file ~/.lnget/lnd/seed.txt
 ```
 
 ## Starting and Stopping
@@ -106,7 +152,11 @@ skills/lnd/scripts/create-wallet.sh --recover --seed-file ~/.lnget/lnd/seed.txt
 ### Start lnd
 
 ```bash
-skills/lnd/scripts/start-lnd.sh
+# Watch-only (default) — requires signer host
+skills/lnd/scripts/start-lnd.sh --signer-host <signer-ip>:10012
+
+# Standalone mode
+skills/lnd/scripts/start-lnd.sh --mode standalone
 ```
 
 Starts lnd as a background process using the config at `~/.lnget/lnd/lnd.conf`.
@@ -130,6 +180,9 @@ start-lnd.sh --foreground
 
 # With extra lnd flags
 start-lnd.sh --extra-args "--debuglevel=trace"
+
+# Set signer host via environment variable
+LND_SIGNER_HOST=10.0.0.5:10012 start-lnd.sh
 ```
 
 ### Stop lnd
@@ -207,6 +260,54 @@ skills/lnd/scripts/lncli.sh listpayments
 skills/lnd/scripts/lncli.sh listinvoices
 ```
 
+### Macaroon Bakery
+
+lnd uses macaroons for API authentication. Bake custom macaroons for
+least-privilege access:
+
+```bash
+# Bake a pay-only macaroon (for agents that only need to pay invoices)
+skills/lnd/scripts/lncli.sh bakemacaroon \
+    uri:/lnrpc.Lightning/SendPaymentSync \
+    uri:/lnrpc.Lightning/DecodePayReq \
+    uri:/lnrpc.Lightning/GetInfo \
+    --save_to=~/.lnd/data/chain/bitcoin/mainnet/pay-only.macaroon
+
+# Bake an invoice-only macaroon (for agents that only receive payments)
+skills/lnd/scripts/lncli.sh bakemacaroon \
+    uri:/lnrpc.Lightning/AddInvoice \
+    uri:/lnrpc.Lightning/LookupInvoice \
+    uri:/lnrpc.Lightning/ListInvoices \
+    uri:/lnrpc.Lightning/GetInfo \
+    --save_to=~/.lnd/data/chain/bitcoin/mainnet/invoice-only.macaroon
+
+# Bake a read-only macaroon
+skills/lnd/scripts/lncli.sh bakemacaroon \
+    uri:/lnrpc.Lightning/GetInfo \
+    uri:/lnrpc.Lightning/ChannelBalance \
+    uri:/lnrpc.Lightning/WalletBalance \
+    uri:/lnrpc.Lightning/ListChannels \
+    --save_to=~/.lnd/data/chain/bitcoin/mainnet/readonly-custom.macaroon
+
+# Print macaroon details
+skills/lnd/scripts/lncli.sh printmacaroon --macaroon_file <path>
+
+# List existing macaroon permissions
+skills/lnd/scripts/lncli.sh listpermissions
+```
+
+**Built-in macaroons** (auto-generated by lnd):
+
+| Macaroon | Capabilities |
+|----------|-------------|
+| `admin.macaroon` | Full access (read, write, generate invoices, send payments) |
+| `readonly.macaroon` | Read-only access (getinfo, balances, list operations) |
+| `invoice.macaroon` | Create and manage invoices only |
+
+**Best practice:** Never give agents the admin macaroon. Bake a custom macaroon
+with only the permissions the agent needs. See
+[references/security.md](references/security.md) for details.
+
 ### Peer Management
 
 ```bash
@@ -248,6 +349,16 @@ neutrino.feeurl=https://nodes.lightning.computer/fees/v1/btc-fee-estimates.json
 db.backend=sqlite
 ```
 
+In watch-only mode, `start-lnd.sh` automatically appends:
+
+```ini
+[remotesigner]
+remotesigner.enable=true
+remotesigner.rpchost=<signer-host>
+remotesigner.tlscertpath=~/.lnget/lnd/signer-credentials/tls.cert
+remotesigner.macaroonpath=~/.lnget/lnd/signer-credentials/admin.macaroon
+```
+
 Override network:
 
 ```bash
@@ -269,7 +380,8 @@ start-lnd.sh --network testnet
 |------|---------|
 | `~/.lnget/lnd/lnd.conf` | Configuration file |
 | `~/.lnget/lnd/wallet-password.txt` | Wallet unlock passphrase (0600) |
-| `~/.lnget/lnd/seed.txt` | 24-word mnemonic backup (0600) |
+| `~/.lnget/lnd/seed.txt` | 24-word mnemonic backup (0600, standalone only) |
+| `~/.lnget/lnd/signer-credentials/` | Imported signer credentials (watch-only) |
 | `~/.lnd/` | lnd data directory (default) |
 | `~/.lnd/data/chain/bitcoin/<network>/` | Chain data and macaroons |
 | `~/.lnd/tls.cert` | TLS certificate |
@@ -305,22 +417,40 @@ ln:
     network: mainnet
 ```
 
+**For agents using baked macaroons**, point to the custom macaroon instead:
+
+```yaml
+ln:
+  mode: lnd
+  lnd:
+    host: localhost:10009
+    tls_cert: ~/.lnd/tls.cert
+    macaroon: ~/.lnd/data/chain/bitcoin/mainnet/pay-only.macaroon
+    network: mainnet
+```
+
 ## Security Considerations
 
 See [references/security.md](references/security.md) for detailed security
 guidance.
 
-**Current model (convenience):**
+**Default model (watch-only with remote signer):**
+- No seed or private keys on the agent machine
+- Signing delegated to a separate signer node via gRPC
+- Credentials bundle (xpubs, TLS cert, macaroon) imported from signer
+- Set up with the `lightning-security-module` skill
+
+**Standalone model (testing only):**
 - Wallet passphrase stored on disk at `~/.lnget/lnd/wallet-password.txt`
 - Seed mnemonic stored on disk at `~/.lnget/lnd/seed.txt`
 - Both files created with mode 0600 (owner read/write only)
-- Suitable for testnet, small amounts, and agent automation
+- Suitable for testnet, small amounts, and quick testing
 
-**Future improvements:**
-- Remote signer mode (seed never on the agent's machine)
-- Hardware signing device integration
-- Encrypted credential storage with OS keychain
-- Multi-party signing for high-value operations
+**Macaroon security:**
+- Never give agents the admin macaroon in production
+- Bake custom macaroons with minimum required permissions
+- Use `bakemacaroon` to create scoped credentials for each agent role
+- See the Macaroon Bakery section above for examples
 
 ## Troubleshooting
 
@@ -348,4 +478,17 @@ lnd is not running or not listening. Check:
 ```bash
 skills/lnd/scripts/lncli.sh --help  # Verify lncli works
 pgrep lnd                           # Check if lnd process exists
+```
+
+### "remote signer not reachable"
+The watch-only node cannot connect to the signer. Check:
+```bash
+# Verify signer is running
+curl -sk https://<signer-ip>:10012/v1/state
+
+# Check signer credentials are imported
+ls -la ~/.lnget/lnd/signer-credentials/
+
+# Verify TLS cert matches
+openssl x509 -in ~/.lnget/lnd/signer-credentials/tls.cert -noout -subject
 ```
