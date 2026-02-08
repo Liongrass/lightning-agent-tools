@@ -4,6 +4,9 @@
 # Usage:
 #   export-credentials.sh                               # Default (local signer)
 #   export-credentials.sh --container sam               # Signer in Docker
+#   export-credentials.sh --rpcserver remote:10012 \    # Remote signer
+#                         --tlscertpath ~/tls.cert \
+#                         --macaroonpath ~/admin.macaroon
 #   export-credentials.sh --network testnet             # Testnet
 #   export-credentials.sh --output /path/to/output      # Custom output dir
 #
@@ -21,6 +24,9 @@ NETWORK="mainnet"
 RPC_PORT=10012
 OUTPUT_DIR=""
 CONTAINER=""
+RPCSERVER=""
+TLSCERTPATH=""
+MACAROONPATH=""
 
 # Parse arguments.
 while [[ $# -gt 0 ]]; do
@@ -45,17 +51,32 @@ while [[ $# -gt 0 ]]; do
             CONTAINER="$2"
             shift 2
             ;;
+        --rpcserver)
+            RPCSERVER="$2"
+            shift 2
+            ;;
+        --tlscertpath)
+            TLSCERTPATH="$2"
+            shift 2
+            ;;
+        --macaroonpath)
+            MACAROONPATH="$2"
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: export-credentials.sh [options]"
             echo ""
             echo "Export credentials bundle from a running signer."
             echo ""
             echo "Options:"
-            echo "  --network NETWORK   Bitcoin network (default: mainnet)"
-            echo "  --lnddir DIR        Signer lnd data directory (default: ~/.lnd-signer)"
-            echo "  --rpc-port PORT     Signer RPC port (default: 10012)"
-            echo "  --output DIR        Output directory (default: ~/.lnget/signer/credentials-bundle)"
-            echo "  --container NAME    Export from lnd running inside a Docker container"
+            echo "  --network NETWORK      Bitcoin network (default: mainnet)"
+            echo "  --lnddir DIR           Signer lnd data directory (default: ~/.lnd-signer)"
+            echo "  --rpc-port PORT        Signer RPC port (default: 10012)"
+            echo "  --output DIR           Output directory (default: ~/.lnget/signer/credentials-bundle)"
+            echo "  --container NAME       Export from lnd running inside a Docker container"
+            echo "  --rpcserver HOST:PORT  Connect to a remote signer node"
+            echo "  --tlscertpath PATH     TLS certificate for remote connection (also bundled)"
+            echo "  --macaroonpath PATH    Macaroon for remote authentication (also bundled)"
             exit 0
             ;;
         *)
@@ -89,26 +110,44 @@ if [ -n "$CONTAINER" ]; then
         echo "Error: lncli not found in container '$CONTAINER'." >&2
         exit 1
     fi
-elif ! command -v lncli &>/dev/null; then
-    echo "Error: lncli not found. Run install.sh first." >&2
-    exit 1
+elif [ -z "$RPCSERVER" ]; then
+    if ! command -v lncli &>/dev/null; then
+        echo "Error: lncli not found. Run install.sh first." >&2
+        exit 1
+    fi
+else
+    if ! command -v lncli &>/dev/null; then
+        echo "Error: lncli not found. Install lncli to connect to the remote signer." >&2
+        exit 1
+    fi
 fi
 
 # Create bundle directory.
 mkdir -p "$BUNDLE_DIR"
 chmod 700 "$BUNDLE_DIR"
 
+# Build lncli connection flags.
+LNCLI_CONN=()
+if [ -n "$RPCSERVER" ]; then
+    LNCLI_CONN+=("--rpcserver=$RPCSERVER")
+else
+    LNCLI_CONN+=("--rpcserver=localhost:$RPC_PORT")
+fi
+LNCLI_CONN+=("--lnddir=$LND_SIGNER_DIR" "--network=$NETWORK")
+if [ -n "$TLSCERTPATH" ]; then
+    LNCLI_CONN+=("--tlscertpath=$TLSCERTPATH")
+fi
+if [ -n "$MACAROONPATH" ]; then
+    LNCLI_CONN+=("--macaroonpath=$MACAROONPATH")
+fi
+
 # Export accounts list.
 echo "Exporting accounts..."
 if [ -n "$CONTAINER" ]; then
-    docker exec "$CONTAINER" lncli --rpcserver="localhost:$RPC_PORT" \
-        --lnddir="$LND_SIGNER_DIR" \
-        --network="$NETWORK" \
+    docker exec "$CONTAINER" lncli "${LNCLI_CONN[@]}" \
         wallet accounts list > "$BUNDLE_DIR/accounts.json"
 else
-    lncli --rpcserver="localhost:$RPC_PORT" \
-        --lnddir="$LND_SIGNER_DIR" \
-        --network="$NETWORK" \
+    lncli "${LNCLI_CONN[@]}" \
         wallet accounts list > "$BUNDLE_DIR/accounts.json"
 fi
 
@@ -119,14 +158,22 @@ fi
 echo "  accounts.json exported."
 
 # Copy TLS certificate.
-TLS_CERT="$LND_SIGNER_DIR/tls.cert"
-if [ -n "$CONTAINER" ]; then
+if [ -n "$RPCSERVER" ]; then
+    # Remote mode: use the provided --tlscertpath as the bundle cert.
+    if [ -z "$TLSCERTPATH" ]; then
+        echo "Error: --tlscertpath required for remote export (needed for bundle)." >&2
+        exit 1
+    fi
+    cp "$TLSCERTPATH" "$BUNDLE_DIR/tls.cert"
+elif [ -n "$CONTAINER" ]; then
+    TLS_CERT="$LND_SIGNER_DIR/tls.cert"
     docker cp "$CONTAINER:$TLS_CERT" "$BUNDLE_DIR/tls.cert" 2>/dev/null
     if [ ! -f "$BUNDLE_DIR/tls.cert" ]; then
         echo "Error: TLS certificate not found at $TLS_CERT in container '$CONTAINER'" >&2
         exit 1
     fi
 else
+    TLS_CERT="$LND_SIGNER_DIR/tls.cert"
     if [ ! -f "$TLS_CERT" ]; then
         echo "Error: TLS certificate not found at $TLS_CERT" >&2
         exit 1
@@ -136,14 +183,22 @@ fi
 echo "  tls.cert copied."
 
 # Copy admin macaroon.
-MACAROON="$LND_SIGNER_DIR/data/chain/bitcoin/$NETWORK/admin.macaroon"
-if [ -n "$CONTAINER" ]; then
+if [ -n "$RPCSERVER" ]; then
+    # Remote mode: use the provided --macaroonpath as the bundle macaroon.
+    if [ -z "$MACAROONPATH" ]; then
+        echo "Error: --macaroonpath required for remote export (needed for bundle)." >&2
+        exit 1
+    fi
+    cp "$MACAROONPATH" "$BUNDLE_DIR/admin.macaroon"
+elif [ -n "$CONTAINER" ]; then
+    MACAROON="$LND_SIGNER_DIR/data/chain/bitcoin/$NETWORK/admin.macaroon"
     docker cp "$CONTAINER:$MACAROON" "$BUNDLE_DIR/admin.macaroon" 2>/dev/null
     if [ ! -f "$BUNDLE_DIR/admin.macaroon" ]; then
         echo "Error: Admin macaroon not found at $MACAROON in container '$CONTAINER'" >&2
         exit 1
     fi
 else
+    MACAROON="$LND_SIGNER_DIR/data/chain/bitcoin/$NETWORK/admin.macaroon"
     if [ ! -f "$MACAROON" ]; then
         echo "Error: Admin macaroon not found at $MACAROON" >&2
         exit 1

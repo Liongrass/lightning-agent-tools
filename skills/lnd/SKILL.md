@@ -69,6 +69,27 @@ skills/lnd/scripts/lncli.sh --container sam walletbalance
 skills/lnd/scripts/stop-lnd.sh --container sam
 ```
 
+## Remote Nodes
+
+To connect to a remote lnd node, provide the connection credentials:
+
+```bash
+# Run lncli against a remote node
+skills/lnd/scripts/lncli.sh \
+    --rpcserver remote-host:10009 \
+    --tlscertpath ~/remote-tls.cert \
+    --macaroonpath ~/remote-admin.macaroon \
+    getinfo
+
+# Stop a remote node
+skills/lnd/scripts/stop-lnd.sh \
+    --rpcserver remote-host:10009 \
+    --tlscertpath ~/remote-tls.cert \
+    --macaroonpath ~/remote-admin.macaroon
+```
+
+You need lncli installed locally and copies of the node's TLS cert and macaroon.
+
 ## Installation
 
 The install script builds lnd from source with all required build tags:

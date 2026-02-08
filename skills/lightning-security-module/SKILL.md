@@ -70,6 +70,27 @@ skills/lightning-security-module/scripts/export-credentials.sh --container sam -
 skills/lightning-security-module/scripts/stop-signer.sh --container sam
 ```
 
+## Remote Signer
+
+To export credentials from a remote signer, provide the connection credentials:
+
+```bash
+# Export credentials from a remote signer
+skills/lightning-security-module/scripts/export-credentials.sh \
+    --rpcserver signer-host:10012 \
+    --tlscertpath ~/signer-tls.cert \
+    --macaroonpath ~/signer-admin.macaroon
+
+# Stop a remote signer
+skills/lightning-security-module/scripts/stop-signer.sh \
+    --rpcserver signer-host:10012 \
+    --tlscertpath ~/signer-tls.cert \
+    --macaroonpath ~/signer-admin.macaroon
+```
+
+For remote export, the provided TLS cert and macaroon are included in the
+credentials bundle (since they're already the files needed to connect).
+
 ## Credential Bundle Format
 
 The exported bundle (`~/.lnget/signer/credentials-bundle/`) contains:

@@ -4,6 +4,7 @@
 # Usage:
 #   stop-signer.sh                    # Graceful stop via lncli
 #   stop-signer.sh --container sam    # Stop signer in Docker container
+#   stop-signer.sh --rpcserver remote:10012 --tlscertpath ~/tls.cert --macaroonpath ~/admin.macaroon
 #   stop-signer.sh --force            # SIGTERM immediately
 
 set -e
@@ -13,6 +14,9 @@ NETWORK="${NETWORK:-mainnet}"
 RPC_PORT=10012
 FORCE=false
 CONTAINER=""
+RPCSERVER=""
+TLSCERTPATH=""
+MACAROONPATH=""
 
 # Parse arguments.
 while [[ $# -gt 0 ]]; do
@@ -33,16 +37,31 @@ while [[ $# -gt 0 ]]; do
             CONTAINER="$2"
             shift 2
             ;;
+        --rpcserver)
+            RPCSERVER="$2"
+            shift 2
+            ;;
+        --tlscertpath)
+            TLSCERTPATH="$2"
+            shift 2
+            ;;
+        --macaroonpath)
+            MACAROONPATH="$2"
+            shift 2
+            ;;
         -h|--help)
-            echo "Usage: stop-signer.sh [--force] [--container NAME] [--network NETWORK] [--rpc-port PORT]"
+            echo "Usage: stop-signer.sh [options]"
             echo ""
             echo "Stop the remote signer lnd node."
             echo ""
             echo "Options:"
-            echo "  --force              Send SIGTERM immediately (or docker stop for containers)"
-            echo "  --network NETWORK    Bitcoin network (default: mainnet)"
-            echo "  --rpc-port PORT      Signer RPC port (default: 10012)"
-            echo "  --container NAME     Stop lnd running inside a Docker container"
+            echo "  --force                Send SIGTERM immediately (or docker stop for containers)"
+            echo "  --network NETWORK      Bitcoin network (default: mainnet)"
+            echo "  --rpc-port PORT        Signer RPC port (default: 10012)"
+            echo "  --container NAME       Stop lnd running inside a Docker container"
+            echo "  --rpcserver HOST:PORT  Connect to a remote signer node"
+            echo "  --tlscertpath PATH     TLS certificate for remote connection"
+            echo "  --macaroonpath PATH    Macaroon for remote authentication"
             exit 0
             ;;
         *)
@@ -88,6 +107,32 @@ if [ -n "$CONTAINER" ]; then
     exit 0
 fi
 
+# Build connection flags for lncli.
+CONN_FLAGS=(--network="$NETWORK" --lnddir="$LND_SIGNER_DIR")
+if [ -n "$RPCSERVER" ]; then
+    CONN_FLAGS+=("--rpcserver=$RPCSERVER")
+else
+    CONN_FLAGS+=("--rpcserver=localhost:$RPC_PORT")
+fi
+if [ -n "$TLSCERTPATH" ]; then
+    CONN_FLAGS+=("--tlscertpath=$TLSCERTPATH")
+fi
+if [ -n "$MACAROONPATH" ]; then
+    CONN_FLAGS+=("--macaroonpath=$MACAROONPATH")
+fi
+
+# Remote mode — stop via lncli only (no PID or port access).
+if [ -n "$RPCSERVER" ]; then
+    echo "Stopping remote signer at $RPCSERVER..."
+    if lncli "${CONN_FLAGS[@]}" stop; then
+        echo "Graceful shutdown initiated."
+    else
+        echo "Error: lncli stop failed for remote signer." >&2
+        exit 1
+    fi
+    exit 0
+fi
+
 # Local mode — check if signer is running by probing the RPC port.
 if ! curl -sk "https://localhost:$RPC_PORT/v1/state" &>/dev/null 2>&1; then
     echo "Signer lnd is not running (port $RPC_PORT not responding)."
@@ -108,10 +153,7 @@ if [ "$FORCE" = true ]; then
     fi
 else
     # Try graceful shutdown via lncli.
-    if lncli --rpcserver="localhost:$RPC_PORT" \
-        --lnddir="$LND_SIGNER_DIR" \
-        --network="$NETWORK" \
-        stop 2>/dev/null; then
+    if lncli "${CONN_FLAGS[@]}" stop 2>/dev/null; then
         echo "Graceful shutdown initiated."
     else
         echo "lncli stop failed, finding process on port $RPC_PORT..."

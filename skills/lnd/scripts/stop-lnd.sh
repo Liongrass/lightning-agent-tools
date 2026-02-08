@@ -4,6 +4,7 @@
 # Usage:
 #   stop-lnd.sh                    # Graceful stop via lncli
 #   stop-lnd.sh --container sam    # Stop lnd in Docker container
+#   stop-lnd.sh --rpcserver remote:10009 --tlscertpath ~/tls.cert --macaroonpath ~/admin.macaroon
 #   stop-lnd.sh --force            # SIGTERM immediately
 
 set -e
@@ -12,6 +13,9 @@ LND_DIR="${LND_DIR:-}"
 NETWORK="${NETWORK:-mainnet}"
 FORCE=false
 CONTAINER=""
+RPCSERVER=""
+TLSCERTPATH=""
+MACAROONPATH=""
 
 # Parse arguments.
 while [[ $# -gt 0 ]]; do
@@ -28,15 +32,30 @@ while [[ $# -gt 0 ]]; do
             CONTAINER="$2"
             shift 2
             ;;
+        --rpcserver)
+            RPCSERVER="$2"
+            shift 2
+            ;;
+        --tlscertpath)
+            TLSCERTPATH="$2"
+            shift 2
+            ;;
+        --macaroonpath)
+            MACAROONPATH="$2"
+            shift 2
+            ;;
         -h|--help)
-            echo "Usage: stop-lnd.sh [--force] [--container NAME] [--network NETWORK]"
+            echo "Usage: stop-lnd.sh [options]"
             echo ""
             echo "Stop lnd gracefully."
             echo ""
             echo "Options:"
-            echo "  --force              Send SIGTERM immediately (or docker stop for containers)"
-            echo "  --network NETWORK    Bitcoin network (default: mainnet)"
-            echo "  --container NAME     Stop lnd running inside a Docker container"
+            echo "  --force                Send SIGTERM immediately (or docker stop for containers)"
+            echo "  --network NETWORK      Bitcoin network (default: mainnet)"
+            echo "  --container NAME       Stop lnd running inside a Docker container"
+            echo "  --rpcserver HOST:PORT  Connect to a remote lnd node"
+            echo "  --tlscertpath PATH     TLS certificate for remote connection"
+            echo "  --macaroonpath PATH    Macaroon for remote authentication"
             exit 0
             ;;
         *)
@@ -79,6 +98,30 @@ if [ -n "$CONTAINER" ]; then
     exit 0
 fi
 
+# Build connection flags for lncli.
+CONN_FLAGS=(--network="$NETWORK" --lnddir="$LND_DIR")
+if [ -n "$RPCSERVER" ]; then
+    CONN_FLAGS+=("--rpcserver=$RPCSERVER")
+fi
+if [ -n "$TLSCERTPATH" ]; then
+    CONN_FLAGS+=("--tlscertpath=$TLSCERTPATH")
+fi
+if [ -n "$MACAROONPATH" ]; then
+    CONN_FLAGS+=("--macaroonpath=$MACAROONPATH")
+fi
+
+# Remote mode — stop via lncli only (no PID access).
+if [ -n "$RPCSERVER" ]; then
+    echo "Stopping remote lnd at $RPCSERVER..."
+    if lncli "${CONN_FLAGS[@]}" stop; then
+        echo "Graceful shutdown initiated."
+    else
+        echo "Error: lncli stop failed for remote node." >&2
+        exit 1
+    fi
+    exit 0
+fi
+
 # Local mode — check if lnd is running.
 LND_PID=$(pgrep -x lnd 2>/dev/null || true)
 if [ -z "$LND_PID" ]; then
@@ -93,7 +136,7 @@ if [ "$FORCE" = true ]; then
     echo "Sent SIGTERM."
 else
     # Try graceful shutdown via lncli.
-    if lncli --network="$NETWORK" --lnddir="$LND_DIR" stop 2>/dev/null; then
+    if lncli "${CONN_FLAGS[@]}" stop 2>/dev/null; then
         echo "Graceful shutdown initiated."
     else
         echo "lncli stop failed, sending SIGTERM..."

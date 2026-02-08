@@ -39,6 +39,22 @@ skills/macaroon-bakery/scripts/bake.sh --role pay-only --container sam
 skills/macaroon-bakery/scripts/bake.sh --inspect /root/.lnd/data/chain/bitcoin/regtest/admin.macaroon --container sam
 ```
 
+### Remote Nodes
+
+To bake macaroons on a remote lnd node, provide the connection credentials:
+
+```bash
+# Bake a pay-only macaroon on a remote node
+skills/macaroon-bakery/scripts/bake.sh --role pay-only \
+    --rpcserver remote-host:10009 \
+    --tlscertpath ~/remote-tls.cert \
+    --macaroonpath ~/remote-admin.macaroon \
+    --save-to ~/remote-pay-only.macaroon
+```
+
+You need lncli installed locally and copies of the node's TLS cert and a macaroon
+with `macaroon:generate` permission (typically admin.macaroon).
+
 ## Preset Roles
 
 | Role | What the agent can do | Cannot do |

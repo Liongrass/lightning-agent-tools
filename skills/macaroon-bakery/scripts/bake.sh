@@ -11,6 +11,9 @@
 #   bake.sh --inspect <macaroon-path>          # Inspect a macaroon
 #   bake.sh --list-permissions                 # List all available permissions
 #   bake.sh --container sam --role pay-only     # Bake inside a Docker container
+#   bake.sh --rpcserver remote:10009 \          # Bake on a remote node
+#           --tlscertpath ~/tls.cert \
+#           --macaroonpath ~/admin.macaroon --role pay-only
 
 set -e
 
@@ -24,6 +27,9 @@ INSPECT=""
 LIST_PERMS=false
 CUSTOM_PERMS=()
 CONTAINER=""
+RPCSERVER=""
+TLSCERTPATH=""
+MACAROONPATH=""
 
 # Parse arguments.
 while [[ $# -gt 0 ]]; do
@@ -68,6 +74,18 @@ while [[ $# -gt 0 ]]; do
             CONTAINER="$2"
             shift 2
             ;;
+        --rpcserver)
+            RPCSERVER="$2"
+            shift 2
+            ;;
+        --tlscertpath)
+            TLSCERTPATH="$2"
+            shift 2
+            ;;
+        --macaroonpath)
+            MACAROONPATH="$2"
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: bake.sh [options]"
             echo ""
@@ -87,6 +105,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --lnddir DIR           lnd data directory (default: ~/.lnd)"
             echo "  --rpc-port PORT        lnd RPC port (for non-default setups)"
             echo "  --container NAME       Run lncli inside a Docker container"
+            echo "  --rpcserver HOST:PORT  Connect to a remote lnd node"
+            echo "  --tlscertpath PATH     TLS certificate for remote connection"
+            echo "  --macaroonpath PATH    Macaroon for remote authentication"
             exit 0
             ;;
         *)
@@ -111,8 +132,16 @@ if [ -n "$CONTAINER" ]; then
 else
     LNCLI_CMD="lncli --network=$NETWORK --lnddir=$LND_DIR"
 fi
-if [ -n "$RPC_PORT" ]; then
+if [ -n "$RPCSERVER" ]; then
+    LNCLI_CMD="$LNCLI_CMD --rpcserver=$RPCSERVER"
+elif [ -n "$RPC_PORT" ]; then
     LNCLI_CMD="$LNCLI_CMD --rpcserver=localhost:$RPC_PORT"
+fi
+if [ -n "$TLSCERTPATH" ]; then
+    LNCLI_CMD="$LNCLI_CMD --tlscertpath=$TLSCERTPATH"
+fi
+if [ -n "$MACAROONPATH" ]; then
+    LNCLI_CMD="$LNCLI_CMD --macaroonpath=$MACAROONPATH"
 fi
 
 # Verify lncli is available.
@@ -239,7 +268,12 @@ fi
 
 # Determine output path.
 if [ -z "$SAVE_TO" ]; then
-    MACAROON_DIR="$LND_DIR/data/chain/bitcoin/$NETWORK"
+    if [ -n "$CONTAINER" ]; then
+        # Container mode: save locally, not inside the container.
+        MACAROON_DIR="$HOME/.lnget/macaroons"
+    else
+        MACAROON_DIR="$LND_DIR/data/chain/bitcoin/$NETWORK"
+    fi
     if [ -n "$ROLE" ]; then
         SAVE_TO="$MACAROON_DIR/${ROLE}.macaroon"
     else
