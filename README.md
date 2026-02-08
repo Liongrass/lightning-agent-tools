@@ -13,6 +13,7 @@ paid API endpoints.
 | **macaroon-bakery** | Bake least-privilege macaroons for scoped agent access. |
 | **lnget** | Lightning-native HTTP client with automatic L402 payment support. |
 | **aperture** | L402 reverse proxy for hosting paid API endpoints. |
+| **mcp-lnc** | MCP server for Lightning Node Connect — connects AI assistants to lnd via encrypted WebSocket tunnels. |
 | **commerce** | End-to-end agent commerce workflow (lnd + lnget + aperture). |
 
 ## Quick Start
@@ -79,6 +80,7 @@ lightning-agent-kit/
     ├── lnd/                 # Lightning node operations
     ├── lightning-security-module/  # Remote signer setup
     ├── macaroon-bakery/     # Credential scoping
+    ├── mcp-lnc/             # MCP server build & config
     ├── lnget/               # L402 HTTP client
     ├── aperture/            # L402 reverse proxy
     └── commerce/            # Full commerce workflow
@@ -100,6 +102,14 @@ macaroons — never give agents `admin.macaroon` in production.
 The `mcp-server/` directory contains an MCP server that connects to lnd via
 Lightning Node Connect (LNC). This enables AI assistants to interact with
 Lightning nodes through the Model Context Protocol.
+
+Use the `mcp-lnc` skill to build, configure, and wire it into Claude Code:
+
+```bash
+skills/mcp-lnc/scripts/install.sh
+skills/mcp-lnc/scripts/configure.sh
+skills/mcp-lnc/scripts/setup-claude-config.sh
+```
 
 ## Prerequisites
 
