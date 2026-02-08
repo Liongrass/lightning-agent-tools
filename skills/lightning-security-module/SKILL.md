@@ -58,6 +58,18 @@ skills/lnd/scripts/create-wallet.sh --signer-host <signer-ip>:10012
 skills/lnd/scripts/start-lnd.sh --signer-host <signer-ip>:10012
 ```
 
+## Docker
+
+If the signer is running in a Docker container, use `--container`:
+
+```bash
+# Export credentials from signer container
+skills/lightning-security-module/scripts/export-credentials.sh --container sam --network regtest
+
+# Stop signer container
+skills/lightning-security-module/scripts/stop-signer.sh --container sam
+```
+
 ## Credential Bundle Format
 
 The exported bundle (`~/.lnget/signer/credentials-bundle/`) contains:

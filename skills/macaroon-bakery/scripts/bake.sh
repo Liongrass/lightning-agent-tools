@@ -10,11 +10,12 @@
 #   bake.sh --custom uri:/lnrpc.Lightning/...  # Custom permissions
 #   bake.sh --inspect <macaroon-path>          # Inspect a macaroon
 #   bake.sh --list-permissions                 # List all available permissions
+#   bake.sh --container sam --role pay-only     # Bake inside a Docker container
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LND_DIR="${LND_DIR:-$HOME/.lnd}"
+LND_DIR="${LND_DIR:-}"
 NETWORK="${NETWORK:-mainnet}"
 RPC_PORT=""
 SAVE_TO=""
@@ -22,6 +23,7 @@ ROLE=""
 INSPECT=""
 LIST_PERMS=false
 CUSTOM_PERMS=()
+CONTAINER=""
 
 # Parse arguments.
 while [[ $# -gt 0 ]]; do
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
             RPC_PORT="$2"
             shift 2
             ;;
+        --container)
+            CONTAINER="$2"
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: bake.sh [options]"
             echo ""
@@ -80,6 +86,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --network NETWORK      Bitcoin network (default: mainnet)"
             echo "  --lnddir DIR           lnd data directory (default: ~/.lnd)"
             echo "  --rpc-port PORT        lnd RPC port (for non-default setups)"
+            echo "  --container NAME       Run lncli inside a Docker container"
             exit 0
             ;;
         *)
@@ -89,26 +96,53 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Apply default lnddir if not set.
+if [ -z "$LND_DIR" ]; then
+    if [ -n "$CONTAINER" ]; then
+        LND_DIR="/root/.lnd"
+    else
+        LND_DIR="$HOME/.lnd"
+    fi
+fi
+
 # Build lncli base command.
-LNCLI_CMD="lncli --network=$NETWORK --lnddir=$LND_DIR"
+if [ -n "$CONTAINER" ]; then
+    LNCLI_CMD="docker exec $CONTAINER lncli --network=$NETWORK --lnddir=$LND_DIR"
+else
+    LNCLI_CMD="lncli --network=$NETWORK --lnddir=$LND_DIR"
+fi
 if [ -n "$RPC_PORT" ]; then
     LNCLI_CMD="$LNCLI_CMD --rpcserver=localhost:$RPC_PORT"
 fi
 
-# Verify lncli is installed.
-if ! command -v lncli &>/dev/null; then
+# Verify lncli is available.
+if [ -n "$CONTAINER" ]; then
+    if ! docker exec "$CONTAINER" which lncli &>/dev/null; then
+        echo "Error: lncli not found in container '$CONTAINER'." >&2
+        exit 1
+    fi
+elif ! command -v lncli &>/dev/null; then
     echo "Error: lncli not found. Run the lnd skill's install.sh first." >&2
     exit 1
 fi
 
 # --- Inspect mode ---
 if [ -n "$INSPECT" ]; then
-    if [ ! -f "$INSPECT" ]; then
+    if [ -n "$CONTAINER" ]; then
+        # Check file exists inside container.
+        if ! docker exec "$CONTAINER" test -f "$INSPECT"; then
+            echo "Error: Macaroon file not found in container '$CONTAINER': $INSPECT" >&2
+            exit 1
+        fi
+    elif [ ! -f "$INSPECT" ]; then
         echo "Error: Macaroon file not found: $INSPECT" >&2
         exit 1
     fi
     echo "=== Macaroon: $(basename "$INSPECT") ==="
     echo "Path: $INSPECT"
+    if [ -n "$CONTAINER" ]; then
+        echo "Container: $CONTAINER"
+    fi
     echo ""
     $LNCLI_CMD printmacaroon --macaroon_file "$INSPECT"
     exit 0
@@ -225,7 +259,15 @@ echo "Output:      $SAVE_TO"
 echo ""
 
 # Bake the macaroon.
-$LNCLI_CMD bakemacaroon "${PERMS[@]}" --save_to="$SAVE_TO"
+if [ -n "$CONTAINER" ]; then
+    # Bake inside container, then copy out to local path.
+    CONTAINER_TMP="/tmp/baked-$(date +%s).macaroon"
+    $LNCLI_CMD bakemacaroon "${PERMS[@]}" --save_to="$CONTAINER_TMP"
+    docker cp "$CONTAINER:$CONTAINER_TMP" "$SAVE_TO"
+    docker exec "$CONTAINER" rm -f "$CONTAINER_TMP"
+else
+    $LNCLI_CMD bakemacaroon "${PERMS[@]}" --save_to="$SAVE_TO"
+fi
 
 # Set restrictive permissions.
 chmod 600 "$SAVE_TO"

@@ -56,6 +56,19 @@ skills/lnd/scripts/lncli.sh getinfo
 > disk. Any process running as the same user can read them. Do not use for
 > mainnet funds you cannot afford to lose.
 
+## Docker
+
+If lnd is running in a Docker container, most scripts accept `--container`:
+
+```bash
+# Run lncli commands against a container
+skills/lnd/scripts/lncli.sh --container sam getinfo
+skills/lnd/scripts/lncli.sh --container sam walletbalance
+
+# Stop lnd in a container
+skills/lnd/scripts/stop-lnd.sh --container sam
+```
+
 ## Installation
 
 The install script builds lnd from source with all required build tags:

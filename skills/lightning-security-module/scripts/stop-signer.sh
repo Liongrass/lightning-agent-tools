@@ -3,14 +3,16 @@
 #
 # Usage:
 #   stop-signer.sh                    # Graceful stop via lncli
+#   stop-signer.sh --container sam    # Stop signer in Docker container
 #   stop-signer.sh --force            # SIGTERM immediately
 
 set -e
 
-LND_SIGNER_DIR="${LND_SIGNER_DIR:-$HOME/.lnd-signer}"
+LND_SIGNER_DIR="${LND_SIGNER_DIR:-}"
 NETWORK="${NETWORK:-mainnet}"
 RPC_PORT=10012
 FORCE=false
+CONTAINER=""
 
 # Parse arguments.
 while [[ $# -gt 0 ]]; do
@@ -27,15 +29,20 @@ while [[ $# -gt 0 ]]; do
             RPC_PORT="$2"
             shift 2
             ;;
+        --container)
+            CONTAINER="$2"
+            shift 2
+            ;;
         -h|--help)
-            echo "Usage: stop-signer.sh [--force] [--network NETWORK] [--rpc-port PORT]"
+            echo "Usage: stop-signer.sh [--force] [--container NAME] [--network NETWORK] [--rpc-port PORT]"
             echo ""
             echo "Stop the remote signer lnd node."
             echo ""
             echo "Options:"
-            echo "  --force              Send SIGTERM immediately"
+            echo "  --force              Send SIGTERM immediately (or docker stop for containers)"
             echo "  --network NETWORK    Bitcoin network (default: mainnet)"
             echo "  --rpc-port PORT      Signer RPC port (default: 10012)"
+            echo "  --container NAME     Stop lnd running inside a Docker container"
             exit 0
             ;;
         *)
@@ -45,7 +52,43 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check if signer is running by probing the RPC port.
+# Apply default lnddir if not set.
+if [ -z "$LND_SIGNER_DIR" ]; then
+    if [ -n "$CONTAINER" ]; then
+        LND_SIGNER_DIR="/root/.lnd"
+    else
+        LND_SIGNER_DIR="$HOME/.lnd-signer"
+    fi
+fi
+
+if [ -n "$CONTAINER" ]; then
+    # Docker container mode.
+    if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+        echo "Container '$CONTAINER' is not running."
+        exit 0
+    fi
+
+    echo "Stopping signer lnd in container '$CONTAINER'..."
+
+    if [ "$FORCE" = true ]; then
+        docker stop "$CONTAINER"
+        echo "Container stopped."
+    else
+        if docker exec "$CONTAINER" lncli --rpcserver="localhost:$RPC_PORT" \
+            --lnddir="$LND_SIGNER_DIR" \
+            --network="$NETWORK" \
+            stop 2>/dev/null; then
+            echo "Graceful shutdown initiated."
+        else
+            echo "lncli stop failed, stopping container..."
+            docker stop "$CONTAINER"
+            echo "Container stopped."
+        fi
+    fi
+    exit 0
+fi
+
+# Local mode — check if signer is running by probing the RPC port.
 if ! curl -sk "https://localhost:$RPC_PORT/v1/state" &>/dev/null 2>&1; then
     echo "Signer lnd is not running (port $RPC_PORT not responding)."
     exit 0

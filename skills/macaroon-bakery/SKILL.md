@@ -27,6 +27,18 @@ skills/macaroon-bakery/scripts/bake.sh --inspect ~/.lnd/data/chain/bitcoin/mainn
 skills/macaroon-bakery/scripts/bake.sh --list-permissions
 ```
 
+### Docker
+
+If lnd is running in a Docker container, use `--container`:
+
+```bash
+# Bake a pay-only macaroon on the sam node
+skills/macaroon-bakery/scripts/bake.sh --role pay-only --container sam
+
+# Inspect a macaroon inside a container
+skills/macaroon-bakery/scripts/bake.sh --inspect /root/.lnd/data/chain/bitcoin/regtest/admin.macaroon --container sam
+```
+
 ## Preset Roles
 
 | Role | What the agent can do | Cannot do |
