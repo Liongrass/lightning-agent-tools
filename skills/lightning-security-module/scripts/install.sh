@@ -3,9 +3,12 @@
 #
 # Usage:
 #   install.sh              # Install latest release
-#   install.sh --version v0.18.0-beta  # Specific version
+#   install.sh --version v0.19.2-beta  # Specific version
 #
 # Prerequisites: Go 1.21+
+#
+# Note: lnd uses replace directives in go.mod, so `go install` from the
+# module registry does not work. This script clones the repo and builds.
 
 set -e
 
@@ -16,7 +19,7 @@ BUILD_TAGS="signrpc walletrpc chainrpc invoicesrpc routerrpc peersrpc kvdb_sqlit
 while [[ $# -gt 0 ]]; do
     case $1 in
         --version)
-            VERSION="@$2"
+            VERSION="$2"
             shift 2
             ;;
         --tags)
@@ -29,7 +32,7 @@ while [[ $# -gt 0 ]]; do
             echo "Install lnd and lncli on the signer machine."
             echo ""
             echo "Options:"
-            echo "  --version VERSION  Go module version (e.g., v0.18.0-beta)"
+            echo "  --version VERSION  Git tag (e.g., v0.19.2-beta). Default: latest release."
             echo "  --tags TAGS        Build tags (default: signrpc walletrpc ...)"
             exit 0
             ;;
@@ -55,14 +58,40 @@ echo "Go version: $GO_VERSION"
 echo "Build tags: $BUILD_TAGS"
 echo ""
 
-# Install lnd.
-echo "Installing lnd..."
-go install -tags "$BUILD_TAGS" "github.com/lightningnetwork/lnd/cmd/lnd${VERSION}"
+# Clone lnd into a temp directory and build from source.
+TMPDIR=$(mktemp -d)
+trap "rm -rf $TMPDIR" EXIT
+
+echo "Cloning lnd..."
+git clone --quiet https://github.com/lightningnetwork/lnd.git "$TMPDIR/lnd"
+
+cd "$TMPDIR/lnd"
+
+# Checkout specific version if requested, otherwise use latest tag.
+if [ -n "$VERSION" ]; then
+    echo "Checking out $VERSION..."
+    git checkout --quiet "$VERSION"
+else
+    LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    if [ -n "$LATEST_TAG" ]; then
+        echo "Using latest tag: $LATEST_TAG"
+        git checkout --quiet "$LATEST_TAG"
+    else
+        echo "Using HEAD (no tags found)."
+    fi
+fi
+echo ""
+
+GOBIN=$(go env GOPATH)/bin
+
+# Build lnd.
+echo "Building lnd..."
+go build -tags "$BUILD_TAGS" -o "$GOBIN/lnd" ./cmd/lnd
 echo "Done."
 
-# Install lncli.
-echo "Installing lncli..."
-go install -tags "$BUILD_TAGS" "github.com/lightningnetwork/lnd/cmd/lncli${VERSION}"
+# Build lncli.
+echo "Building lncli..."
+go build -tags "$BUILD_TAGS" -o "$GOBIN/lncli" ./cmd/lncli
 echo "Done."
 echo ""
 

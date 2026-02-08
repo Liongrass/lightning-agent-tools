@@ -126,22 +126,22 @@ if [ -z "$LND_DIR" ]; then
     fi
 fi
 
-# Build lncli base command.
+# Build lncli base command as an array (preserves paths with spaces).
+LNCLI_CMD=()
 if [ -n "$CONTAINER" ]; then
-    LNCLI_CMD="docker exec $CONTAINER lncli --network=$NETWORK --lnddir=$LND_DIR"
-else
-    LNCLI_CMD="lncli --network=$NETWORK --lnddir=$LND_DIR"
+    LNCLI_CMD+=(docker exec "$CONTAINER")
 fi
+LNCLI_CMD+=(lncli "--network=$NETWORK" "--lnddir=$LND_DIR")
 if [ -n "$RPCSERVER" ]; then
-    LNCLI_CMD="$LNCLI_CMD --rpcserver=$RPCSERVER"
+    LNCLI_CMD+=("--rpcserver=$RPCSERVER")
 elif [ -n "$RPC_PORT" ]; then
-    LNCLI_CMD="$LNCLI_CMD --rpcserver=localhost:$RPC_PORT"
+    LNCLI_CMD+=("--rpcserver=localhost:$RPC_PORT")
 fi
 if [ -n "$TLSCERTPATH" ]; then
-    LNCLI_CMD="$LNCLI_CMD --tlscertpath=$TLSCERTPATH"
+    LNCLI_CMD+=("--tlscertpath=$TLSCERTPATH")
 fi
 if [ -n "$MACAROONPATH" ]; then
-    LNCLI_CMD="$LNCLI_CMD --macaroonpath=$MACAROONPATH"
+    LNCLI_CMD+=("--macaroonpath=$MACAROONPATH")
 fi
 
 # Verify lncli is available.
@@ -173,7 +173,7 @@ if [ -n "$INSPECT" ]; then
         echo "Container: $CONTAINER"
     fi
     echo ""
-    $LNCLI_CMD printmacaroon --macaroon_file "$INSPECT"
+    "${LNCLI_CMD[@]}" printmacaroon --macaroon_file "$INSPECT"
     exit 0
 fi
 
@@ -181,7 +181,7 @@ fi
 if [ "$LIST_PERMS" = true ]; then
     echo "=== Available Macaroon Permissions ==="
     echo ""
-    $LNCLI_CMD listpermissions | jq -r '.method_permissions | to_entries[] | .key' | sort
+    "${LNCLI_CMD[@]}" listpermissions | jq -r '.method_permissions | to_entries[] | .key' | sort
     exit 0
 fi
 
@@ -268,8 +268,8 @@ fi
 
 # Determine output path.
 if [ -z "$SAVE_TO" ]; then
-    if [ -n "$CONTAINER" ]; then
-        # Container mode: save locally, not inside the container.
+    if [ -n "$CONTAINER" ] || [ -n "$RPCSERVER" ]; then
+        # Container/remote mode: save locally, not inside the container or on the remote.
         MACAROON_DIR="$HOME/.lnget/macaroons"
     else
         MACAROON_DIR="$LND_DIR/data/chain/bitcoin/$NETWORK"
@@ -296,11 +296,11 @@ echo ""
 if [ -n "$CONTAINER" ]; then
     # Bake inside container, then copy out to local path.
     CONTAINER_TMP="/tmp/baked-$(date +%s).macaroon"
-    $LNCLI_CMD bakemacaroon "${PERMS[@]}" --save_to="$CONTAINER_TMP"
+    "${LNCLI_CMD[@]}" bakemacaroon "${PERMS[@]}" --save_to="$CONTAINER_TMP"
     docker cp "$CONTAINER:$CONTAINER_TMP" "$SAVE_TO"
     docker exec "$CONTAINER" rm -f "$CONTAINER_TMP"
 else
-    $LNCLI_CMD bakemacaroon "${PERMS[@]}" --save_to="$SAVE_TO"
+    "${LNCLI_CMD[@]}" bakemacaroon "${PERMS[@]}" --save_to="$SAVE_TO"
 fi
 
 # Set restrictive permissions.
