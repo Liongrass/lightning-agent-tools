@@ -1,0 +1,12 @@
+{
+  "name": "lightning-agent-kit",
+  "description": "Lightning Network agent toolkit. Skills for running lnd nodes, fetching L402-protected resources with lnget, hosting paid API endpoints with Aperture, and an MCP server for AI assistant integration.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Lightning Labs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lightninglabs/lightning-agent-kit"
+  }
+}
