@@ -169,6 +169,9 @@ differences from a standard lnd node:
 - Restrict signer RPC to specific IP addresses via firewall
 - Run signer on dedicated hardware or a hardened VM
 - Enable macaroon rotation on a schedule
+- Use **Lightning Node Connect (LNC)** via the `mcp-lnc` skill for read-only
+  agent access — avoids exposing gRPC ports and eliminates cert/macaroon
+  management on the agent side
 
 ## Macaroon Bakery for Signer
 

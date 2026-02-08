@@ -90,6 +90,22 @@ skills/lnd/scripts/stop-lnd.sh \
 
 You need lncli installed locally and copies of the node's TLS cert and macaroon.
 
+## MCP / Lightning Node Connect
+
+For read-only access without direct gRPC connectivity, use the `mcp-lnc` skill
+to connect via **Lightning Node Connect (LNC)**. LNC uses encrypted WebSocket
+tunnels through a mailbox relay — no TLS certs, macaroons, or open ports needed.
+Just a 10-word pairing phrase from Lightning Terminal.
+
+```bash
+# Build and configure the MCP server
+skills/mcp-lnc/scripts/install.sh
+skills/mcp-lnc/scripts/configure.sh
+skills/mcp-lnc/scripts/setup-claude-config.sh
+```
+
+See the `mcp-lnc` skill for details.
+
 ## Installation
 
 The install script builds lnd from source with all required build tags:
