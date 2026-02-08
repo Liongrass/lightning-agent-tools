@@ -140,47 +140,23 @@ differences from a standard lnd node:
 ## Macaroon Bakery for Signer
 
 By default, the credentials bundle includes the signer's `admin.macaroon`. For
-production, bake a scoped macaroon that only allows signing operations:
+production, use the `macaroon-bakery` skill to bake a signing-only macaroon:
 
 ```bash
-# On the signer machine — bake a signing-only macaroon
-skills/lightning-security-module/scripts/lncli-signer.sh bakemacaroon \
-    uri:/signrpc.Signer/SignOutputRaw \
-    uri:/signrpc.Signer/ComputeInputScript \
-    uri:/signrpc.Signer/MuSig2Sign \
-    uri:/walletrpc.WalletKit/DeriveKey \
-    uri:/walletrpc.WalletKit/DeriveNextKey \
-    --save_to=~/.lnd-signer/data/chain/bitcoin/mainnet/signer-only.macaroon
-```
+# On the signer machine
+skills/macaroon-bakery/scripts/bake.sh --role signer-only \
+    --rpc-port 10012 --lnddir ~/.lnd-signer
 
-Or use `lncli` directly:
-
-```bash
-lncli --rpcserver=localhost:10012 --lnddir=~/.lnd-signer \
-    bakemacaroon \
-    uri:/signrpc.Signer/SignOutputRaw \
-    uri:/signrpc.Signer/ComputeInputScript \
-    uri:/signrpc.Signer/MuSig2Sign \
-    uri:/walletrpc.WalletKit/DeriveKey \
-    uri:/walletrpc.WalletKit/DeriveNextKey \
-    --save_to=~/.lnd-signer/data/chain/bitcoin/mainnet/signer-only.macaroon
+# Inspect what the macaroon can do
+skills/macaroon-bakery/scripts/bake.sh --inspect \
+    ~/.lnd-signer/data/chain/bitcoin/mainnet/signer-only.macaroon
 ```
 
 Then re-export the credentials bundle, replacing `admin.macaroon` with the
 scoped macaroon in `~/.lnget/signer/credentials-bundle/`.
 
-**Inspect a macaroon's permissions:**
-
-```bash
-lncli --rpcserver=localhost:10012 --lnddir=~/.lnd-signer \
-    printmacaroon --macaroon_file <path>
-```
-
-**List all available permissions for baking:**
-
-```bash
-lncli --rpcserver=localhost:10012 --lnddir=~/.lnd-signer listpermissions
-```
+See the `macaroon-bakery` skill for all preset roles, custom permissions, and
+rotation best practices.
 
 ## Ports
 

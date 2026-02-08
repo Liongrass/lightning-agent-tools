@@ -100,65 +100,31 @@ permissions.
 
 ### Macaroon Bakery: Least-Privilege Access
 
-**Never give agents the admin macaroon in production.** Instead, bake custom
-macaroons with only the permissions each agent needs:
+**Never give agents the admin macaroon in production.** Use the
+`macaroon-bakery` skill to bake custom macaroons with only the permissions each
+agent needs. It supports preset roles (`pay-only`, `invoice-only`, `read-only`,
+`channel-admin`, `signer-only`) and custom permission sets.
 
 ```bash
-# Pay-only: agent can pay invoices and check info
-lncli bakemacaroon \
-    uri:/lnrpc.Lightning/SendPaymentSync \
-    uri:/lnrpc.Lightning/DecodePayReq \
-    uri:/lnrpc.Lightning/GetInfo \
-    --save_to=~/.lnd/data/chain/bitcoin/mainnet/pay-only.macaroon
+# Bake a pay-only macaroon
+skills/macaroon-bakery/scripts/bake.sh --role pay-only
 
-# Invoice-only: agent can create and manage invoices
-lncli bakemacaroon \
-    uri:/lnrpc.Lightning/AddInvoice \
-    uri:/lnrpc.Lightning/LookupInvoice \
-    uri:/lnrpc.Lightning/ListInvoices \
-    uri:/lnrpc.Lightning/GetInfo \
-    --save_to=~/.lnd/data/chain/bitcoin/mainnet/invoice-only.macaroon
-
-# Read-only custom: agent can view balances and channels
-lncli bakemacaroon \
-    uri:/lnrpc.Lightning/GetInfo \
-    uri:/lnrpc.Lightning/ChannelBalance \
-    uri:/lnrpc.Lightning/WalletBalance \
-    uri:/lnrpc.Lightning/ListChannels \
-    uri:/lnrpc.Lightning/ListPeers \
-    --save_to=~/.lnd/data/chain/bitcoin/mainnet/readonly-custom.macaroon
+# Inspect a macaroon's permissions
+skills/macaroon-bakery/scripts/bake.sh --inspect <path-to-macaroon>
 ```
 
-### Macaroon Best Practices
-
-- **One macaroon per agent role.** Don't share macaroons between agents with
-  different responsibilities.
-- **Audit permissions.** Use `lncli printmacaroon --macaroon_file <path>` to
-  inspect what a macaroon can do.
-- **Rotate regularly.** Bake new macaroons and revoke old ones. Use
-  `lncli deletemacaroonid` to invalidate compromised macaroons.
-- **Scope signer macaroons too.** When using remote signer, replace the admin
-  macaroon in the credentials bundle with a signing-only macaroon. See
-  `lightning-security-module` references for details.
-- **Use `listpermissions`** to discover all available URI permissions for
-  fine-grained macaroon baking: `lncli listpermissions`.
+See the `macaroon-bakery` skill for full usage, rotation, and best practices.
 
 ### Macaroon Scoping for Remote Signer
 
 When using the remote signer architecture, the macaroon included in the
 credentials bundle grants the watch-only node access to the signer's RPC. For
-production, replace the admin macaroon with a scoped one:
+production, replace the admin macaroon with a signing-only macaroon:
 
 ```bash
-# On the signer machine — bake a signing-only macaroon
-lncli --rpcserver=localhost:10012 --lnddir=~/.lnd-signer \
-    bakemacaroon \
-    uri:/signrpc.Signer/SignOutputRaw \
-    uri:/signrpc.Signer/ComputeInputScript \
-    uri:/signrpc.Signer/MuSig2Sign \
-    uri:/walletrpc.WalletKit/DeriveKey \
-    uri:/walletrpc.WalletKit/DeriveNextKey \
-    --save_to=~/.lnd-signer/data/chain/bitcoin/mainnet/signer-only.macaroon
+# On the signer machine
+skills/macaroon-bakery/scripts/bake.sh --role signer-only \
+    --rpc-port 10012 --lnddir ~/.lnd-signer
 ```
 
 Then re-export the credentials bundle with this macaroon instead of
