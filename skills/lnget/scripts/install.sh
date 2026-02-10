@@ -32,6 +32,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Default to @latest when no version specified.
+VERSION="${VERSION:-@latest}"
+
 echo "=== Installing lnget ==="
 echo ""
 
