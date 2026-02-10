@@ -11,11 +11,14 @@
 #   generate_lnd_config  <template> <output> [network] [debug] [extra_args] [bitcoind_opts]
 
 # Default bitcoind connection values used when switching to regtest.
-_BITCOIND_RPCHOST="${BITCOIND_RPCHOST:-bitcoind:18443}"
+# Uses the container name (litd-bitcoind) rather than the compose service name
+# (bitcoind) so that containers joining via `docker network connect` can
+# resolve the host — service aliases only work within the originating compose.
+_BITCOIND_RPCHOST="${BITCOIND_RPCHOST:-litd-bitcoind:18443}"
 _BITCOIND_RPCUSER="${BITCOIND_RPCUSER:-devuser}"
 _BITCOIND_RPCPASS="${BITCOIND_RPCPASS:-devpass}"
-_BITCOIND_ZMQPUBRAWBLOCK="${BITCOIND_ZMQPUBRAWBLOCK:-tcp://bitcoind:28332}"
-_BITCOIND_ZMQPUBRAWTX="${BITCOIND_ZMQPUBRAWTX:-tcp://bitcoind:28333}"
+_BITCOIND_ZMQPUBRAWBLOCK="${BITCOIND_ZMQPUBRAWBLOCK:-tcp://litd-bitcoind:28332}"
+_BITCOIND_ZMQPUBRAWTX="${BITCOIND_ZMQPUBRAWTX:-tcp://litd-bitcoind:28333}"
 
 # generate_litd_config produces a litd runtime config from a template.
 #

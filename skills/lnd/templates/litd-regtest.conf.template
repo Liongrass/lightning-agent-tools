@@ -44,12 +44,13 @@ lnd.bitcoin.basefee=1000
 lnd.bitcoin.feerate=1
 lnd.bitcoin.timelockdelta=80
 
-# bitcoind connection (Docker service name).
-lnd.bitcoind.rpchost=bitcoind:18443
+# bitcoind connection (container name — works both within compose and for
+# containers joining the network externally via docker network connect).
+lnd.bitcoind.rpchost=litd-bitcoind:18443
 lnd.bitcoind.rpcuser=devuser
 lnd.bitcoind.rpcpass=devpass
-lnd.bitcoind.zmqpubrawblock=tcp://bitcoind:28332
-lnd.bitcoind.zmqpubrawtx=tcp://bitcoind:28333
+lnd.bitcoind.zmqpubrawblock=tcp://litd-bitcoind:28332
+lnd.bitcoind.zmqpubrawtx=tcp://litd-bitcoind:28333
 
 lnd.db.backend=sqlite
 
