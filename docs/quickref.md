@@ -5,18 +5,27 @@
 ## Installation
 
 ```bash
-skills/lnd/scripts/install.sh                              # lnd + lncli
-skills/lnget/scripts/install.sh                            # lnget CLI
-skills/aperture/scripts/install.sh                         # aperture proxy
-skills/mcp-lnc/scripts/install.sh                          # MCP server
-skills/lightning-security-module/scripts/install.sh         # lnd (signer machine)
+# Docker image pull is the default; add --source to build from source instead.
+skills/lnd/scripts/install.sh                              # litd container image
+skills/lnget/scripts/install.sh                            # lnget CLI (always built from source)
+skills/aperture/scripts/install.sh                         # aperture (always built from source)
+skills/mcp-lnc/scripts/install.sh                          # MCP server (always built from source)
+skills/lightning-security-module/scripts/install.sh         # lnd signer container image
 ```
 
 ## Node Operations
 
 ```bash
-skills/lnd/scripts/start-lnd.sh                            # start lnd
-skills/lnd/scripts/stop-lnd.sh                             # stop lnd
+# Start/stop (Docker container by default; --native for local binary)
+skills/lnd/scripts/start-lnd.sh                            # start litd container (standalone)
+skills/lnd/scripts/start-lnd.sh --watchonly                # watch-only + signer containers
+skills/lnd/scripts/start-lnd.sh --regtest                  # regtest + bitcoind containers
+skills/lnd/scripts/start-lnd.sh --profile debug            # start with debug logging profile
+skills/lnd/scripts/docker-start.sh --list-profiles         # list available profiles
+skills/lnd/scripts/stop-lnd.sh                             # stop containers
+skills/lnd/scripts/stop-lnd.sh --clean                     # stop + remove Docker volumes
+
+# Node queries (auto-detects containers)
 skills/lnd/scripts/lncli.sh getinfo                        # node status
 skills/lnd/scripts/lncli.sh walletbalance                  # on-chain balance
 skills/lnd/scripts/lncli.sh channelbalance                 # channel balance
@@ -26,9 +35,13 @@ skills/lnd/scripts/unlock-wallet.sh                        # unlock after restar
 ## Wallet
 
 ```bash
-# Watch-only (production, imports xpubs from signer)
+# Watch-only with Docker (signer on Docker network, no --signer-host needed)
 skills/lnd/scripts/import-credentials.sh --bundle <path>
-skills/lnd/scripts/create-wallet.sh --signer-host <ip>:10012
+skills/lnd/scripts/create-wallet.sh                        # auto-detects container
+
+# Watch-only with native (signer on separate machine)
+skills/lnd/scripts/import-credentials.sh --bundle <path>
+skills/lnd/scripts/create-wallet.sh --native --signer-host <ip>:10012
 
 # Standalone (testing, generates local seed)
 skills/lnd/scripts/create-wallet.sh --mode standalone
@@ -149,34 +162,52 @@ skills/mcp-lnc/scripts/setup-claude-config.sh --scope global    # add to ~/.clau
 ## Remote Signer
 
 ```bash
-# On signer machine
-skills/lightning-security-module/scripts/install.sh        # install lnd
-skills/lightning-security-module/scripts/setup-signer.sh   # create wallet + export creds
-skills/lightning-security-module/scripts/start-signer.sh   # start signer
-skills/lightning-security-module/scripts/stop-signer.sh    # stop signer
-skills/lightning-security-module/scripts/export-credentials.sh  # re-export bundle
+# On signer machine (Docker container by default)
+skills/lightning-security-module/scripts/install.sh        # pull lnd signer image
+skills/lightning-security-module/scripts/setup-signer.sh   # create wallet + export creds (auto-detects container)
+skills/lightning-security-module/scripts/start-signer.sh   # start signer container
+skills/lightning-security-module/scripts/stop-signer.sh    # stop signer container
+skills/lightning-security-module/scripts/stop-signer.sh --clean  # stop + remove volumes
+skills/lightning-security-module/scripts/export-credentials.sh   # re-export bundle
 
-# On agent machine
+# On agent machine (Docker)
 skills/lnd/scripts/import-credentials.sh --bundle <path>
-skills/lnd/scripts/create-wallet.sh --signer-host <ip>:10012
-skills/lnd/scripts/start-lnd.sh --signer-host <ip>:10012
+skills/lnd/scripts/create-wallet.sh                        # auto-detects container
+skills/lnd/scripts/start-lnd.sh --watchonly                # watch-only + signer containers
 
-# Scope signer macaroon
-skills/macaroon-bakery/scripts/bake.sh --role signer-only \
-    --rpc-port 10012 --lnddir ~/.lnd-signer
+# On agent machine (native, signer on separate host)
+skills/lnd/scripts/import-credentials.sh --bundle <path>
+skills/lnd/scripts/create-wallet.sh --native --signer-host <ip>:10012
+skills/lnd/scripts/start-lnd.sh --native --signer-host <ip>:10012
+
+# Scope signer macaroon (container or native)
+skills/macaroon-bakery/scripts/bake.sh --role signer-only --container litd-signer
+skills/macaroon-bakery/scripts/bake.sh --role signer-only --rpc-port 10012 --lnddir ~/.lnd-signer
 ```
 
 ## Docker Containers
 
-All `lncli` and bakery commands support `--container` for Docker-based nodes:
+Docker is the default deployment method. Container lifecycle:
 
 ```bash
-skills/lnd/scripts/lncli.sh --container sam --network regtest getinfo
-skills/lnd/scripts/lncli.sh --container sam --network regtest walletbalance
-skills/macaroon-bakery/scripts/bake.sh --role pay-only --container sam --network regtest
-skills/macaroon-bakery/scripts/bake.sh --inspect /root/.lnd/data/chain/bitcoin/regtest/admin.macaroon --container sam
-skills/lnd/scripts/stop-lnd.sh --container sam
-skills/lightning-security-module/scripts/export-credentials.sh --container sam --network regtest
+# Lifecycle (these are the primary entry points)
+skills/lnd/scripts/start-lnd.sh                            # standalone litd container
+skills/lnd/scripts/start-lnd.sh --watchonly                # litd + signer containers
+skills/lnd/scripts/start-lnd.sh --regtest                  # litd + bitcoind containers
+skills/lnd/scripts/start-lnd.sh --regtest --profile debug  # regtest with debug logging
+skills/lnd/scripts/stop-lnd.sh                             # stop all mode containers
+skills/lnd/scripts/stop-lnd.sh --clean                     # stop + remove volumes
+skills/lnd/scripts/docker-start.sh --list-profiles         # show available profiles
+```
+
+All `lncli` and bakery commands auto-detect running containers. Use `--container`
+to target a specific container by name:
+
+```bash
+skills/lnd/scripts/lncli.sh getinfo                        # auto-detects litd container
+skills/lnd/scripts/lncli.sh --container litd-bob getinfo   # target specific container
+skills/macaroon-bakery/scripts/bake.sh --role pay-only --container litd
+skills/lightning-security-module/scripts/export-credentials.sh --container litd-signer
 ```
 
 ## Remote Nodes
@@ -223,6 +254,7 @@ skills/macaroon-bakery/scripts/bake.sh --role pay-only \
 
 | Port | Service | Daemon |
 |------|---------|--------|
+| 8443 | HTTPS (UI + gRPC + REST) | litd (container) |
 | 9735 | Lightning P2P | lnd |
 | 10009 | gRPC | lnd |
 | 8080 | REST | lnd |

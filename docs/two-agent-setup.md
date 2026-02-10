@@ -46,7 +46,90 @@ The credentials bundle contains three files:
 No private keys cross the wire. The bundle contains only public keys and
 authentication material.
 
-## Part 1: Signer Agent (Secure Machine)
+## Container Mode (Recommended)
+
+Docker is the default deployment method. All scripts auto-detect containers
+and route commands through `docker exec`.
+
+### Signer Machine
+
+```bash
+# Pull the lnd signer image.
+skills/lightning-security-module/scripts/install.sh
+
+# Create the signer wallet and export the credentials bundle.
+# This launches the litd-signer container, creates the wallet via REST API,
+# and exports the bundle to ~/.lnget/signer/credentials-bundle/.
+skills/lightning-security-module/scripts/setup-signer.sh
+
+# Start the signer container (if not already running from setup).
+skills/lightning-security-module/scripts/start-signer.sh
+```
+
+Transfer the credentials bundle to the agent machine:
+
+```bash
+scp ~/.lnget/signer/credentials-bundle/credentials-bundle.tar.gz.b64 \
+    agent-machine:~/credentials-bundle.tar.gz.b64
+```
+
+### Agent Machine
+
+```bash
+# Pull the litd image.
+skills/lnd/scripts/install.sh
+
+# Import the signer's credentials bundle.
+skills/lnd/scripts/import-credentials.sh --bundle ~/credentials-bundle.tar.gz.b64
+
+# Create the watch-only wallet (auto-detects the litd container).
+skills/lnd/scripts/create-wallet.sh
+
+# Start in watch-only mode (launches litd + signer containers via Docker Compose).
+skills/lnd/scripts/start-lnd.sh --watchonly
+
+# Verify.
+skills/lnd/scripts/lncli.sh getinfo
+skills/lnd/scripts/lncli.sh newaddress p2tr
+```
+
+The `--watchonly` flag uses `docker-compose-watchonly.yml`, which starts both a
+litd container (watch-only) and connects it to the signer via the Docker
+network. The signer's gRPC address is pre-configured in the watch-only template
+(`lnd.remotesigner.rpchost=signer:10012`).
+
+### Container Lifecycle
+
+```bash
+# Stop containers.
+skills/lnd/scripts/stop-lnd.sh
+
+# Stop and remove volumes (destructive — removes chain data).
+skills/lnd/scripts/stop-lnd.sh --clean
+
+# On signer machine.
+skills/lightning-security-module/scripts/stop-signer.sh
+skills/lightning-security-module/scripts/stop-signer.sh --clean
+```
+
+### Scoping the Signer Macaroon (Container)
+
+```bash
+# On the signer machine, bake a scoped macaroon inside the container.
+skills/macaroon-bakery/scripts/bake.sh --role signer-only --container litd-signer
+
+# Re-export the credentials bundle with the scoped macaroon.
+skills/lightning-security-module/scripts/export-credentials.sh --container litd-signer
+```
+
+---
+
+## Native Mode
+
+For environments without Docker, all scripts accept a `--native` flag to use
+locally installed binaries.
+
+### Part 1: Signer Agent (Secure Machine)
 
 The signer agent runs on a machine with restricted access. This machine will
 hold all private keys and never connect to the Lightning Network directly.
@@ -54,17 +137,17 @@ hold all private keys and never connect to the Lightning Network directly.
 ### Install lnd
 
 ```bash
-skills/lightning-security-module/scripts/install.sh
+skills/lightning-security-module/scripts/install.sh --source
 ```
 
-This builds lnd with the signing-related build tags. The binary is the same as
-a regular lnd install, but the signer's configuration restricts it to signing
-operations only.
+This builds lnd from source with the signing-related build tags. The binary is
+the same as a regular lnd install, but the signer's configuration restricts it
+to signing operations only.
 
 ### Create the signer wallet and export credentials
 
 ```bash
-skills/lightning-security-module/scripts/setup-signer.sh
+skills/lightning-security-module/scripts/setup-signer.sh --native
 ```
 
 This does three things:
@@ -81,12 +164,12 @@ base64-encoded tarball (`credentials-bundle.tar.gz.b64`) for easy transfer.
 ### Start the signer
 
 ```bash
-skills/lightning-security-module/scripts/start-signer.sh
+skills/lightning-security-module/scripts/start-signer.sh --native
 ```
 
 The signer listens on port 10012 (gRPC) for signing requests from the
-watch-only node. It binds REST to localhost:10013 only. It does not connect to
-any peers and does not participate in the Lightning Network.
+watch-only node. In native mode, REST binds to `localhost:10013` only. It does
+not connect to any peers and does not participate in the Lightning Network.
 
 ### Transfer the bundle
 
@@ -122,7 +205,7 @@ Then re-export the credentials bundle with the scoped macaroon:
 skills/lightning-security-module/scripts/export-credentials.sh
 ```
 
-## Part 2: Node Agent (Agent Machine)
+### Part 2: Node Agent (Agent Machine)
 
 The node agent runs on the machine where agents will operate. This machine
 will have no private keys.
@@ -130,7 +213,7 @@ will have no private keys.
 ### Install lnd
 
 ```bash
-skills/lnd/scripts/install.sh
+skills/lnd/scripts/install.sh --source
 ```
 
 ### Import the credentials bundle
@@ -147,7 +230,7 @@ expects them.
 ### Create the watch-only wallet
 
 ```bash
-skills/lnd/scripts/create-wallet.sh \
+skills/lnd/scripts/create-wallet.sh --native \
     --signer-host <signer-ip>:10012
 ```
 
@@ -162,7 +245,7 @@ signer for initial key verification.
 ### Start the watch-only node
 
 ```bash
-skills/lnd/scripts/start-lnd.sh \
+skills/lnd/scripts/start-lnd.sh --native \
     --signer-host <signer-ip>:10012
 ```
 
@@ -272,14 +355,18 @@ The signer agent's role is maintenance: keeping the signer process running,
 rotating macaroons periodically, and backing up the seed.
 
 ```bash
-# On the signer machine
-skills/lightning-security-module/scripts/start-signer.sh    # if stopped
-skills/lightning-security-module/scripts/stop-signer.sh     # for maintenance
+# On the signer machine (container mode)
+skills/lightning-security-module/scripts/start-signer.sh    # delegates to docker-start.sh
+skills/lightning-security-module/scripts/stop-signer.sh     # delegates to docker-stop.sh
 
-# Rotate the signer macaroon
+# Rotate the signer macaroon (container)
+skills/macaroon-bakery/scripts/bake.sh --role signer-only --container litd-signer
+skills/lightning-security-module/scripts/export-credentials.sh --container litd-signer
+
+# Rotate the signer macaroon (native)
 skills/macaroon-bakery/scripts/bake.sh --role signer-only \
     --rpc-port 10012 --lnddir ~/.lnd-signer
-skills/lightning-security-module/scripts/export-credentials.sh
+skills/lightning-security-module/scripts/export-credentials.sh --native
 
 # Then transfer the new bundle to the node agent and re-import
 ```

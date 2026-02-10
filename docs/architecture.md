@@ -30,8 +30,8 @@ graph TD
         com["commerce"]
     end
 
-    subgraph Daemons["Runtime Layer"]
-        lnd_daemon["lnd daemon<br/>gRPC :10009 / P2P :9735"]
+    subgraph Daemons["Runtime Layer (Docker containers by default)"]
+        lnd_daemon["litd (Lightning Terminal)<br/>HTTPS :8443 / gRPC :10009 / P2P :9735"]
         signer["lnd signer<br/>gRPC :10012"]
         aperture_daemon["aperture proxy<br/>HTTP :8081"]
         mcp_server["mcp-lnc-server<br/>stdio"]
@@ -62,6 +62,12 @@ graph TD
     com -.->|"orchestrates"| lnget_skill
     com -.->|"orchestrates"| ap
 ```
+
+The runtime layer runs inside Docker containers by default. The primary
+container runs [litd](https://github.com/lightninglabs/lightning-terminal)
+(Lightning Terminal), which bundles lnd, Loop, Pool, Taproot Assets (tapd), and
+Faraday into a single process. The signer runs plain lnd in a separate
+container. All container images are pinned in `versions.env`.
 
 The `commerce` skill is a meta-skill. It doesn't manage any infrastructure
 directly but orchestrates `lnd`, `lnget`, and `aperture` together into buyer
@@ -102,21 +108,69 @@ directly and execute the shell scripts it references.
 
 ## The Lightning Node
 
-The `lnd` skill manages an [lnd](https://github.com/lightningnetwork/lnd)
-daemon, the Lightning Network node that serves as the foundation for everything
-else in the kit. The node uses two lightweight backends to avoid requiring a
-full Bitcoin node:
+The `lnd` skill manages a
+[litd](https://github.com/lightninglabs/lightning-terminal) (Lightning Terminal)
+instance, which bundles lnd with Loop, Pool, Taproot Assets, and Faraday in a
+single daemon. litd serves as the foundation for everything else in the kit. The
+node uses two lightweight backends to avoid requiring a full Bitcoin node:
 
 - **Neutrino** (BIP 157/158) for chain data. Fetches compact block filters
   from a set of btcd peers rather than downloading the full blockchain.
+  (Regtest mode uses a Bitcoin Core container instead.)
 - **SQLite** for local storage. All channel state, invoices, and routing data
   live in a single SQLite database rather than the default bbolt.
 
-The install script (`skills/lnd/scripts/install.sh`) builds lnd from source
+### Container-First Deployment
+
+The default deployment runs litd inside a Docker container. The install script
+(`skills/lnd/scripts/install.sh`) pulls the
+`lightninglabs/lightning-terminal` image from Docker Hub. Image versions are
+pinned in `versions.env` at the repo root and can be overridden at runtime via
+environment variables.
+
+For native builds, pass `--source` to `install.sh`, which builds lnd from source
 with the required build tags: `signrpc walletrpc chainrpc invoicesrpc routerrpc
-peersrpc kvdb_sqlite neutrinorpc`. The config template at
-`skills/lnd/templates/lnd.conf.template` gets deployed to
-`~/.lnget/lnd/lnd.conf`.
+peersrpc kvdb_sqlite neutrinorpc`.
+
+### Configuration
+
+The kit uses a config-file-driven approach. Config templates live in
+`skills/lnd/templates/` and are processed at container startup by
+`skills/lib/config-gen.sh`, which substitutes the network, debug level, node
+alias, UI password, and any extra arguments. The generated config is
+bind-mounted into the container as a read-only file. This avoids the fragility
+of long `docker run` command-line flag lists.
+
+Three Docker Compose files define the container topology for each mode:
+
+| File | Mode | Containers |
+|------|------|-----------|
+| `docker-compose.yml` | Standalone | litd (neutrino) |
+| `docker-compose-regtest.yml` | Regtest | litd + Bitcoin Core (+ optional litd-bob) |
+| `docker-compose-watchonly.yml` | Watch-only | litd + signer lnd |
+
+### Profiles
+
+Profile files in `skills/lnd/profiles/` let you customize behavior without
+editing templates. Each profile is a `.env` file that sets `LND_DEBUG`,
+`LITD_EXTRA_ARGS`, and optionally `LITD_ALIAS`. Available profiles:
+
+| Profile | Purpose |
+|---------|---------|
+| `default.env` | Standard operation (info-level logging) |
+| `debug.env` | Verbose per-subsystem tracing |
+| `regtest.env` | Local development on regtest |
+| `taproot.env` | Enables simple taproot channels |
+| `wumbo.env` | Large channels up to 10 BTC |
+
+Start with a profile: `skills/lnd/scripts/start-lnd.sh --profile debug`
+
+### Native Mode
+
+All wrapper scripts (`start-lnd.sh`, `stop-lnd.sh`, `lncli.sh`) accept a
+`--native` flag to bypass Docker and use a locally installed lnd binary. In
+native mode, the config template at `skills/lnd/templates/lnd.conf.template`
+is deployed to `~/.lnget/lnd/lnd.conf`.
 
 ### Watch-Only vs Standalone
 
@@ -144,6 +198,12 @@ solely to hold private keys and sign transactions. This signer node never
 connects to the Lightning Network's peer-to-peer layer, never routes payments,
 and never opens channels. Its only network exposure is a gRPC interface on port
 10012 that the watch-only node connects to for signing requests.
+
+By default, the signer runs in a Docker container named `litd-signer`, defined
+in `skills/lightning-security-module/templates/docker-compose-signer.yml`. The
+`setup-signer.sh` script auto-detects a running `litd-signer` container and
+routes wallet creation and credential export through it. Pass `--native` to
+use a locally installed lnd binary instead.
 
 ```mermaid
 sequenceDiagram
@@ -177,8 +237,10 @@ into `~/.lnget/lnd/signer-credentials/`.
 The signer's config (`skills/lightning-security-module/templates/signer-lnd.conf.template`)
 differs from a standard lnd config in important ways: it listens for RPC on
 `0.0.0.0:10012` to accept connections from the watch-only node, binds REST to
-`localhost:10013` only, includes `0.0.0.0` in the TLS certificate's extra IPs,
-and disables all routing and autopilot features.
+`0.0.0.0:10013` (container mode needs this for host connectivity; native mode
+rebinds to `localhost`), includes container hostnames (`signer`, `litd-signer`)
+in the TLS certificate's extra domains, and disables all routing and autopilot
+features.
 
 For a full discussion of threat models and hardening, see
 [Security](security.md).
@@ -332,9 +394,10 @@ All kit components store their data under predictable paths. The `~/.lnget/`
 tree is managed by the kit's scripts; `~/.lnd/` and `~/.aperture/` are
 managed by their respective daemons.
 
+### Host Files (managed by kit scripts)
+
 | Path | Owner | Contents |
 |------|-------|----------|
-| `~/.lnget/lnd/lnd.conf` | lnd skill | Node configuration |
 | `~/.lnget/lnd/wallet-password.txt` | lnd skill | Wallet unlock passphrase (0600) |
 | `~/.lnget/lnd/seed.txt` | lnd skill | 24-word mnemonic, standalone only (0600) |
 | `~/.lnget/lnd/signer-credentials/` | lnd skill | Imported signer bundle (watch-only) |
@@ -344,20 +407,49 @@ managed by their respective daemons.
 | `~/.lnget/signer/credentials-bundle/` | security module | Exported credentials for agent |
 | `~/.lnget/config.yaml` | lnget | lnget client configuration |
 | `~/.lnget/tokens/<domain>/` | lnget | Cached L402 tokens per domain |
-| `~/.lnd/` | lnd daemon | Chain data, macaroons, TLS cert/key, logs |
-| `~/.lnd-signer/` | signer daemon | Signer chain data, macaroons, TLS |
-| `~/.aperture/aperture.yaml` | aperture | Proxy configuration |
-| `~/.aperture/aperture.db` | aperture | SQLite token database |
-| `~/.aperture/tls.cert`, `tls.key` | aperture | TLS certificate and key |
 | `mcp-server/.env` | mcp-lnc | MCP server environment config |
+
+### Daemon Data (native mode: filesystem; container mode: Docker volumes)
+
+In container mode, the following paths live inside named Docker volumes rather
+than on the host filesystem. Use `docker volume ls` to list them and
+`docker volume inspect <name>` for mount details.
+
+| Path / Volume | Mode | Contents |
+|---------------|------|----------|
+| `~/.lnd/` / `litd-data` | native / container | lnd chain data, macaroons, TLS cert/key, logs |
+| `~/.lnd-signer/` / `signer-data` | native / container | Signer chain data, macaroons, TLS |
+| — / `litd-lit-data` | container only | litd-specific state (sessions, accounts) |
+| `~/.aperture/` / `aperture-data` | native / container | Aperture config, database, TLS |
+
+### Kit Infrastructure
+
+| Path | Purpose |
+|------|---------|
+| `versions.env` | Pinned container image versions (litd, lnd, aperture, Bitcoin Core) |
+| `skills/lib/config-gen.sh` | Shared config generation functions for templates |
+| `skills/lib/rest.sh` | Shared REST API call helpers (native + container) |
+| `skills/lnd/templates/` | Config templates and Docker Compose files |
+| `skills/lnd/profiles/` | Profile `.env` files (default, debug, regtest, taproot, wumbo) |
+| `skills/lightning-security-module/templates/` | Signer config template and Docker Compose |
+| `skills/aperture/templates/` | Aperture config template and Docker Compose |
 
 ## Ports
 
 | Port | Service | Daemon | Interface |
 |------|---------|--------|-----------|
+| 8443 | HTTPS (UI + gRPC + REST) | litd | 0.0.0.0 (container) |
 | 9735 | Lightning P2P | lnd | 0.0.0.0 |
 | 10009 | gRPC | lnd | localhost |
 | 8080 | REST | lnd | localhost |
 | 10012 | gRPC | signer lnd | 0.0.0.0 |
-| 10013 | REST | signer lnd | localhost |
+| 10013 | REST | signer lnd | 0.0.0.0 (container) / localhost (native) |
 | 8081 | HTTP (L402) | aperture | configurable |
+
+Regtest mode adds:
+
+| Port | Service | Daemon |
+|------|---------|--------|
+| 18443 | Bitcoin RPC | bitcoind |
+| 28332 | ZMQ block notifications | bitcoind |
+| 28333 | ZMQ tx notifications | bitcoind |
