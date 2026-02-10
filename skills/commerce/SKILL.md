@@ -14,7 +14,7 @@ micropayments over the Lightning Network using the L402 protocol.
 
 | Skill | Purpose |
 |-------|---------|
-| **lnd** | Run a Lightning node (neutrino + SQLite) |
+| **lnd** | Run Lightning Terminal (litd: lnd + loop + pool + tapd) |
 | **lnget** | Fetch L402-protected resources (pay for data) |
 | **aperture** | Host paid API endpoints (sell data) |
 
@@ -23,7 +23,7 @@ micropayments over the Lightning Network using the L402 protocol.
 ### Step 1: Install All Components
 
 ```bash
-# Install lnd (Lightning node)
+# Install litd (Lightning Terminal — bundles lnd + loop + pool + tapd)
 skills/lnd/scripts/install.sh
 
 # Install lnget (Lightning HTTP client)
@@ -36,11 +36,11 @@ skills/aperture/scripts/install.sh
 ### Step 2: Set Up the Lightning Node
 
 ```bash
-# Create an encrypted wallet (stores passphrase + seed securely)
-skills/lnd/scripts/create-wallet.sh --network mainnet
-
-# Start lnd (neutrino light client, auto-unlock enabled)
+# Start litd container (testnet by default)
 skills/lnd/scripts/start-lnd.sh
+
+# Create an encrypted wallet
+skills/lnd/scripts/create-wallet.sh --mode standalone
 
 # Verify node is running
 skills/lnd/scripts/lncli.sh getinfo
@@ -138,8 +138,8 @@ Agent A receives data ←──────────  Backend returns data
 # One-time setup
 skills/lnd/scripts/install.sh
 skills/lnget/scripts/install.sh
-skills/lnd/scripts/create-wallet.sh
 skills/lnd/scripts/start-lnd.sh
+skills/lnd/scripts/create-wallet.sh --mode standalone
 lnget config init
 
 # Fund wallet and open channels (one-time)
@@ -157,8 +157,8 @@ lnget --max-cost 100 -q https://seller-api.example.com/api/data | jq .
 # One-time setup
 skills/lnd/scripts/install.sh
 skills/aperture/scripts/install.sh
-skills/lnd/scripts/create-wallet.sh
 skills/lnd/scripts/start-lnd.sh
+skills/lnd/scripts/create-wallet.sh --mode standalone
 
 # Configure and start paywall
 skills/aperture/scripts/setup.sh --port 8081 --insecure
@@ -200,8 +200,8 @@ lnget tokens list --json | jq '[.[] | .amount_paid_sat] | add'
 | **lnd macaroons** | Standard lnd paths at `~/.lnd/data/chain/...` |
 | **Aperture DB** | SQLite at `~/.aperture/aperture.db` |
 
-For production use with significant funds, migrate to lnd's remote signer
-mode. See `skills/lnd/references/security.md` for details.
+For production use with significant funds, use watch-only mode with a remote
+signer container. See the `lightning-security-module` skill for details.
 
 ## Stopping Everything
 

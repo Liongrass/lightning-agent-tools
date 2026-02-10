@@ -1,22 +1,51 @@
 #!/usr/bin/env bash
-# Start the remote signer lnd node.
+# Start the remote signer lnd node — delegates to Docker by default.
 #
 # Usage:
-#   start-signer.sh                          # Default (mainnet, background)
-#   start-signer.sh --network testnet        # Testnet
-#   start-signer.sh --foreground             # Run in foreground
+#   start-signer.sh                          # Docker (default)
+#   start-signer.sh --network mainnet        # Mainnet
+#   start-signer.sh --native                 # Native lnd signer
+#   start-signer.sh --native --foreground    # Native, foreground
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NATIVE=false
+
+# Check for --native flag before parsing other args.
+PASS_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--native" ]; then
+        NATIVE=true
+    else
+        PASS_ARGS+=("$arg")
+    fi
+done
+
+# If not native mode, delegate to docker-start.sh.
+if [ "$NATIVE" = false ]; then
+    if command -v docker &>/dev/null; then
+        exec "$SCRIPT_DIR/docker-start.sh" "${PASS_ARGS[@]}"
+    else
+        echo "Docker not available. Falling back to native mode." >&2
+        echo "Install Docker or use --native explicitly." >&2
+        echo ""
+        NATIVE=true
+    fi
+fi
+
+# --- Native mode: original signer startup logic ---
+
 LNGET_SIGNER_DIR="${LNGET_SIGNER_DIR:-$HOME/.lnget/signer}"
 LND_SIGNER_DIR="${LND_SIGNER_DIR:-$HOME/.lnd-signer}"
-NETWORK="mainnet"
+NETWORK="testnet"
 FOREGROUND=false
 EXTRA_ARGS=""
 RPC_PORT=10012
 CONF_FILE="$LNGET_SIGNER_DIR/signer-lnd.conf"
 
 # Parse arguments.
+set -- "${PASS_ARGS[@]}"
 while [[ $# -gt 0 ]]; do
     case $1 in
         --network)
@@ -44,10 +73,13 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Start the remote signer lnd node."
             echo ""
-            echo "Options:"
-            echo "  --network NETWORK    Bitcoin network (default: mainnet)"
+            echo "Docker options (default):"
+            echo "  --network NET     Override network (testnet, mainnet, signet)"
+            echo "  --foreground      Run in foreground (show logs)"
+            echo ""
+            echo "Native options (--native):"
+            echo "  --native             Run lnd as a local process"
             echo "  --lnddir DIR         Signer lnd data directory (default: ~/.lnd-signer)"
-            echo "  --foreground         Run in foreground (default: background)"
             echo "  --rpc-port PORT      Signer RPC port (default: 10012)"
             echo "  --extra-args ARGS    Additional lnd arguments"
             exit 0
@@ -75,7 +107,7 @@ fi
 # Verify config exists.
 if [ ! -f "$CONF_FILE" ]; then
     echo "Error: Signer config not found at $CONF_FILE" >&2
-    echo "Run setup-signer.sh first." >&2
+    echo "Run setup-signer.sh --native first." >&2
     exit 1
 fi
 

@@ -1,130 +1,200 @@
 ---
 name: lnd
-description: Install and run lnd Lightning Network daemon natively with neutrino backend and SQLite storage. Defaults to watch-only mode with remote signer for secure agent operation. Use when setting up a Lightning node for payments, managing wallets, opening channels, paying invoices, or enabling an agent to send/receive Lightning payments for L402 commerce.
+description: Install and run Lightning Terminal (litd) which bundles lnd, loop, pool, tapd, and faraday in a single Docker container. Defaults to neutrino backend with SQLite storage on testnet. Supports watch-only mode with remote signer, standalone mode, and regtest development. Use when setting up a Lightning node for payments, channel management, liquidity management (loop), channel marketplace (pool), taproot assets (tapd), or enabling agent L402 commerce.
 ---
 
-# LND Lightning Network Node
+# Lightning Terminal (litd) — Lightning Network Node
 
-Install and operate an lnd Lightning Network node for agent-driven payments.
-Defaults to neutrino (light client) backend with SQLite storage for minimal
-setup — no full Bitcoin node required.
+Install and operate a Lightning Terminal (litd) node for agent-driven payments.
+litd bundles lnd with loop, pool, tapd, and faraday — giving agents access to
+liquidity management, channel marketplace, and taproot assets in a single
+container.
 
-**Default mode: watch-only with remote signer.** Private keys stay on a
-separate signer machine — the agent never touches key material. For quick
-testing, use `--mode standalone` (keys on disk, less secure).
+**Default:** Docker container, neutrino backend, SQLite storage, testnet. No full
+Bitcoin node required. Use `--network mainnet` for real coins.
 
-## Quick Start (Watch-Only — Recommended)
+**Default mode: watch-only with remote signer.** Private keys stay on a separate
+signer container — the agent never touches key material. For quick testing, use
+`--mode standalone` (keys on disk, less secure).
 
-Requires a signer set up with the `lightning-security-module` skill.
+## Quick Start (Container — Recommended)
+
+### Watch-Only with Remote Signer (Production)
 
 ```bash
-# 1. Install lnd
+# 1. Install litd image
 skills/lnd/scripts/install.sh
 
-# 2. Import credentials from signer (see lightning-security-module skill)
-skills/lnd/scripts/import-credentials.sh --bundle <credentials-bundle>
+# 2. Start litd + signer containers
+skills/lnd/scripts/start-lnd.sh --watchonly
 
-# 3. Create watch-only wallet (needs signer host — lnd must connect to signer during wallet creation)
-skills/lnd/scripts/create-wallet.sh --signer-host <signer-ip>:10012
+# 3. Set up signer wallet (first run only)
+skills/lightning-security-module/scripts/setup-signer.sh --container litd-signer
 
-# 4. Start lnd (connects to remote signer)
-skills/lnd/scripts/start-lnd.sh --signer-host <signer-ip>:10012
+# 4. Import credentials and create watch-only wallet
+skills/lnd/scripts/import-credentials.sh --bundle ~/.lnget/signer/credentials-bundle
+skills/lnd/scripts/create-wallet.sh
 
 # 5. Check status
 skills/lnd/scripts/lncli.sh getinfo
 ```
 
-## Quick Start (Standalone — Testing Only)
-
-For quick testing where security is not a concern. Keys are stored on disk.
+### Standalone (Testing Only)
 
 ```bash
-# 1. Install lnd
+# 1. Install litd image
 skills/lnd/scripts/install.sh
 
-# 2. Create wallet (generates seed locally)
-skills/lnd/scripts/create-wallet.sh --mode standalone
+# 2. Start litd container
+skills/lnd/scripts/start-lnd.sh
 
-# 3. Start lnd
-skills/lnd/scripts/start-lnd.sh --mode standalone
+# 3. Create standalone wallet (generates seed — keys on disk)
+skills/lnd/scripts/create-wallet.sh --mode standalone
 
 # 4. Check status
 skills/lnd/scripts/lncli.sh getinfo
 ```
 
 > **Warning:** Standalone mode stores the seed mnemonic and wallet passphrase on
-> disk. Any process running as the same user can read them. Do not use for
-> mainnet funds you cannot afford to lose.
+> disk. Do not use for mainnet funds you cannot afford to lose.
 
-## Docker
-
-If lnd is running in a Docker container, most scripts accept `--container`:
+### Regtest Development
 
 ```bash
-# Run lncli commands against a container
-skills/lnd/scripts/lncli.sh --container sam getinfo
-skills/lnd/scripts/lncli.sh --container sam walletbalance
+# Start litd + bitcoind for local development
+skills/lnd/scripts/start-lnd.sh --regtest
 
-# Stop lnd in a container
-skills/lnd/scripts/stop-lnd.sh --container sam
+# Create wallet and mine some blocks
+skills/lnd/scripts/create-wallet.sh --container litd --mode standalone
+docker exec litd-bitcoind bitcoin-cli -regtest -generate 101
 ```
 
-## Remote Nodes
+## Container Modes
 
-To connect to a remote lnd node, provide the connection credentials:
+| Mode | Command | Containers | Use Case |
+|------|---------|-----------|----------|
+| Standalone | `start-lnd.sh` | litd | Testing, development |
+| Watch-only | `start-lnd.sh --watchonly` | litd + litd-signer | Production |
+| Regtest | `start-lnd.sh --regtest` | litd + litd-bitcoind | Local dev |
+
+## Profiles
+
+Profiles customize litd behavior without editing compose files:
 
 ```bash
-# Run lncli against a remote node
-skills/lnd/scripts/lncli.sh \
-    --rpcserver remote-host:10009 \
-    --tlscertpath ~/remote-tls.cert \
-    --macaroonpath ~/remote-admin.macaroon \
-    getinfo
+# List available profiles
+skills/lnd/scripts/docker-start.sh --list-profiles
 
-# Stop a remote node
-skills/lnd/scripts/stop-lnd.sh \
-    --rpcserver remote-host:10009 \
-    --tlscertpath ~/remote-tls.cert \
-    --macaroonpath ~/remote-admin.macaroon
+# Start with a profile
+skills/lnd/scripts/start-lnd.sh --profile taproot
+skills/lnd/scripts/start-lnd.sh --profile debug
 ```
 
-You need lncli installed locally and copies of the node's TLS cert and macaroon.
+| Profile | Purpose |
+|---------|---------|
+| `default` | Standard operation (info logging) |
+| `debug` | Trace logging, verbose subsystems |
+| `taproot` | Simple taproot channels enabled |
+| `wumbo` | Large channels up to 10 BTC |
+| `regtest` | Regtest network preset |
 
-## MCP / Lightning Node Connect
+## Network Selection
 
-For read-only access without direct gRPC connectivity, use the `mcp-lnc` skill
-to connect via **Lightning Node Connect (LNC)**. LNC uses encrypted WebSocket
-tunnels through a mailbox relay — no TLS certs, macaroons, or open ports needed.
-Just a 10-word pairing phrase from Lightning Terminal.
+Default is testnet. Override with `--network`:
 
 ```bash
-# Build and configure the MCP server
-skills/mcp-lnc/scripts/install.sh
-skills/mcp-lnc/scripts/configure.sh
-skills/mcp-lnc/scripts/setup-claude-config.sh
+# Testnet (default — no real coins)
+skills/lnd/scripts/start-lnd.sh
+
+# Mainnet (real coins — use with remote signer)
+skills/lnd/scripts/start-lnd.sh --network mainnet --watchonly
+
+# Signet (testing network)
+skills/lnd/scripts/start-lnd.sh --network signet
 ```
 
-See the `mcp-lnc` skill for details.
+## litd Sub-Daemons
+
+litd integrates multiple daemons. Access them via the `--cli` flag:
+
+```bash
+# lnd CLI (default)
+skills/lnd/scripts/lncli.sh getinfo
+
+# Loop — liquidity management (submarine swaps)
+skills/lnd/scripts/lncli.sh --cli loop quote out 100000
+
+# Pool — channel marketplace
+skills/lnd/scripts/lncli.sh --cli pool accounts list
+
+# Taproot Assets (tapd)
+skills/lnd/scripts/lncli.sh --cli tapcli assets list
+
+# Lightning Terminal (litd)
+skills/lnd/scripts/lncli.sh --cli litcli getinfo
+
+# Faraday — channel analytics
+skills/lnd/scripts/lncli.sh --cli frcli revenue
+```
 
 ## Installation
 
-The install script builds lnd from source with all required build tags:
+Default: pulls the litd Docker image.
 
 ```bash
 skills/lnd/scripts/install.sh
 ```
 
-This will:
-- Verify Go is installed (required)
-- Run `go install` with tags: `signrpc walletrpc chainrpc invoicesrpc routerrpc
-  peersrpc kvdb_sqlite neutrinorpc`
-- Verify `lnd` and `lncli` are on `$PATH`
+This pulls `lightninglabs/lightning-terminal:v0.16.0-alpha` from Docker Hub and
+verifies the image. The litd image includes lncli, litcli, loop, pool, tapcli,
+and frcli.
 
-To install manually:
+### Build from Source (Fallback)
 
 ```bash
-go install -tags "signrpc walletrpc chainrpc invoicesrpc routerrpc peersrpc kvdb_sqlite neutrinorpc" github.com/lightningnetwork/lnd/cmd/lnd@latest
-go install -tags "signrpc walletrpc chainrpc invoicesrpc routerrpc peersrpc kvdb_sqlite neutrinorpc" github.com/lightningnetwork/lnd/cmd/lncli@latest
+skills/lnd/scripts/install.sh --source
+```
+
+Requires Go toolchain. Builds lnd and lncli with all build tags.
+
+## Native Mode
+
+For running without Docker, use `--native`:
+
+```bash
+# Start natively
+skills/lnd/scripts/start-lnd.sh --native --mode standalone
+
+# Stop natively
+skills/lnd/scripts/stop-lnd.sh --native
+```
+
+Native mode uses the config template at `skills/lnd/templates/lnd.conf.template`
+and runs lnd as a background process.
+
+## Remote Nodes
+
+Connect to a remote lnd node with connection credentials:
+
+```bash
+skills/lnd/scripts/lncli.sh \
+    --rpcserver remote-host:10009 \
+    --tlscertpath ~/remote-tls.cert \
+    --macaroonpath ~/remote-admin.macaroon \
+    getinfo
+```
+
+## MCP / Lightning Node Connect
+
+For read-only access without direct gRPC connectivity, use the `mcp-lnc` skill
+with Lightning Node Connect (LNC). LNC uses encrypted WebSocket tunnels — no TLS
+certs, macaroons, or open ports needed. Just a pairing phrase from Lightning
+Terminal.
+
+```bash
+skills/mcp-lnc/scripts/install.sh
+skills/mcp-lnc/scripts/configure.sh
+skills/mcp-lnc/scripts/setup-claude-config.sh
 ```
 
 ## Wallet Setup
@@ -138,58 +208,35 @@ machine.
 # Import credentials bundle from signer
 skills/lnd/scripts/import-credentials.sh --bundle <credentials-bundle>
 
-# Create watch-only wallet
+# Create watch-only wallet (auto-detects litd container)
 skills/lnd/scripts/create-wallet.sh
 ```
 
-The credentials bundle is produced by the `lightning-security-module` skill's
-`export-credentials.sh` script. It contains:
-- `accounts.json` — account xpubs for watch-only import
-- `tls.cert` — signer's TLS certificate
-- `admin.macaroon` — signer's admin macaroon
-
 ### Standalone Wallet
 
-Generates a seed locally and stores it on disk. Use only for testing.
+Generates a seed locally. Use only for testing.
 
 ```bash
 skills/lnd/scripts/create-wallet.sh --mode standalone
 ```
 
-This handles the full wallet creation flow:
-
+Handles the full wallet creation flow via REST API:
 1. Generates a secure random wallet passphrase
-2. Starts lnd temporarily (if not running)
-3. Calls `lncli create` with the passphrase
-4. Captures and stores the 24-word seed mnemonic
-5. Stores credentials securely:
-   - `~/.lnget/lnd/wallet-password.txt` (mode 0600) — wallet unlock passphrase
-   - `~/.lnget/lnd/seed.txt` (mode 0600) — 24-word recovery mnemonic
-
-**Options:**
-
-```bash
-# Custom data directory
-create-wallet.sh --lnddir ~/.lnd-agent
-
-# Specific network
-create-wallet.sh --network mainnet
-
-# Custom passphrase (instead of auto-generated)
-create-wallet.sh --mode standalone --password "your-passphrase-here"
-```
+2. Calls `/v1/genseed` to generate a 24-word seed mnemonic
+3. Calls `/v1/initwallet` with the passphrase and seed
+4. Stores credentials securely:
+   - `~/.lnget/lnd/wallet-password.txt` (mode 0600)
+   - `~/.lnget/lnd/seed.txt` (mode 0600)
 
 ### Unlock Wallet
-
-After lnd restarts, the wallet must be unlocked before the node is operational:
 
 ```bash
 skills/lnd/scripts/unlock-wallet.sh
 ```
 
-This reads the passphrase from `~/.lnget/lnd/wallet-password.txt` and calls the
-lnd REST API to unlock. Alternatively, lnd can auto-unlock on start using the
-`wallet-unlock-password-file` config option (included in the default template).
+Auto-unlock is enabled by default in the container via
+`--wallet-unlock-password-file`. Manual unlock is only needed if auto-unlock
+is disabled.
 
 ### Recover Wallet from Seed (Standalone Only)
 
@@ -199,326 +246,196 @@ skills/lnd/scripts/create-wallet.sh --mode standalone --recover --seed-file ~/.l
 
 ## Starting and Stopping
 
-### Start lnd
+### Start
 
 ```bash
-# Watch-only (default) — requires signer host
-skills/lnd/scripts/start-lnd.sh --signer-host <signer-ip>:10012
+# Docker standalone (default)
+skills/lnd/scripts/start-lnd.sh
 
-# Standalone mode
-skills/lnd/scripts/start-lnd.sh --mode standalone
+# Docker watch-only (production)
+skills/lnd/scripts/start-lnd.sh --watchonly
+
+# Docker with profile
+skills/lnd/scripts/start-lnd.sh --profile taproot
+
+# Mainnet
+skills/lnd/scripts/start-lnd.sh --network mainnet
 ```
 
-Starts lnd as a background process using the config at `~/.lnget/lnd/lnd.conf`.
-Defaults:
-- **Backend:** neutrino (BIP 157/158 light client)
-- **Database:** SQLite
-- **Network:** mainnet (override with `--network testnet`)
-- **Auto-unlock:** enabled via password file
-
-**Options:**
+### Stop
 
 ```bash
-# Specify network
-start-lnd.sh --network testnet
-
-# Custom lnd directory
-start-lnd.sh --lnddir ~/.lnd-agent
-
-# Foreground mode (for debugging)
-start-lnd.sh --foreground
-
-# With extra lnd flags
-start-lnd.sh --extra-args "--debuglevel=trace"
-
-# Set signer host via environment variable
-LND_SIGNER_HOST=10.0.0.5:10012 start-lnd.sh
-```
-
-### Stop lnd
-
-```bash
+# Stop (preserve data)
 skills/lnd/scripts/stop-lnd.sh
-```
 
-Gracefully stops lnd via `lncli stop`. Falls back to SIGTERM if lncli fails.
+# Stop and clean (remove volumes)
+skills/lnd/scripts/stop-lnd.sh --clean
+
+# Stop all litd containers
+skills/lnd/scripts/stop-lnd.sh --all
+```
 
 ## Node Operations
 
-All commands go through the lncli wrapper which auto-detects paths and network:
+All commands auto-detect the litd container:
 
 ### Node Info
 
 ```bash
-# Get node status
 skills/lnd/scripts/lncli.sh getinfo
-
-# Wallet balance (on-chain)
 skills/lnd/scripts/lncli.sh walletbalance
-
-# Channel balance (Lightning)
 skills/lnd/scripts/lncli.sh channelbalance
 ```
 
-### Funding the Wallet
+### Funding
 
 ```bash
-# Generate a new address
 skills/lnd/scripts/lncli.sh newaddress p2tr
-
-# Check balance after sending funds
 skills/lnd/scripts/lncli.sh walletbalance
 ```
-
-For testnet, use a faucet. For mainnet, send BTC to the generated address.
 
 ### Channel Management
 
 ```bash
-# Connect to a peer
 skills/lnd/scripts/lncli.sh connect <pubkey>@<host>:9735
-
-# Open a channel (satoshis)
 skills/lnd/scripts/lncli.sh openchannel --node_key=<pubkey> --local_amt=1000000
-
-# List channels
 skills/lnd/scripts/lncli.sh listchannels
-
-# Check channel balance
-skills/lnd/scripts/lncli.sh channelbalance
-
-# Close channel cooperatively
 skills/lnd/scripts/lncli.sh closechannel --funding_txid=<txid> --output_index=<n>
 ```
 
 ### Payments
 
 ```bash
-# Create an invoice
 skills/lnd/scripts/lncli.sh addinvoice --amt=1000 --memo="test payment"
-
-# Decode a BOLT11 invoice
 skills/lnd/scripts/lncli.sh decodepayreq <bolt11_invoice>
-
-# Pay an invoice
 skills/lnd/scripts/lncli.sh sendpayment --pay_req=<bolt11_invoice>
-
-# List payments
 skills/lnd/scripts/lncli.sh listpayments
-
-# List received invoices
-skills/lnd/scripts/lncli.sh listinvoices
 ```
 
 ### Macaroon Bakery
 
-lnd uses macaroons for API authentication. **Never give agents the admin
-macaroon in production.** Use the `macaroon-bakery` skill to bake
-least-privilege macaroons for each agent role:
+Use the `macaroon-bakery` skill for least-privilege agent credentials:
 
 ```bash
-# Bake a pay-only macaroon
 skills/macaroon-bakery/scripts/bake.sh --role pay-only
-
-# Bake an invoice-only macaroon
 skills/macaroon-bakery/scripts/bake.sh --role invoice-only
-
-# Inspect any macaroon
 skills/macaroon-bakery/scripts/bake.sh --inspect <path-to-macaroon>
-```
-
-See the `macaroon-bakery` skill for preset roles, custom permissions, rotation,
-and best practices.
-
-**Built-in macaroons** (auto-generated by lnd):
-
-| Macaroon | Capabilities |
-|----------|-------------|
-| `admin.macaroon` | Full access (read, write, generate invoices, send payments) |
-| `readonly.macaroon` | Read-only access (getinfo, balances, list operations) |
-| `invoice.macaroon` | Create and manage invoices only |
-
-### Peer Management
-
-```bash
-# List connected peers
-skills/lnd/scripts/lncli.sh listpeers
-
-# Disconnect from peer
-skills/lnd/scripts/lncli.sh disconnect <pubkey>
 ```
 
 ## Configuration
 
-The default config template lives at `skills/lnd/templates/lnd.conf.template`.
-On first run, `start-lnd.sh` copies it to `~/.lnget/lnd/lnd.conf`.
+### Container Config
 
-Key defaults:
+The Docker compose templates pass configuration via command-line arguments. For
+advanced customization, mount a custom `litd.conf`:
 
-```ini
-[Application Options]
-alias=lnget-agent
-listen=0.0.0.0:9735
-rpclisten=localhost:10009
-restlisten=localhost:8080
-wallet-unlock-password-file=~/.lnget/lnd/wallet-password.txt
-wallet-unlock-allow-create=true
+- **litd template:** `skills/lnd/templates/litd.conf.template`
+- **lnd template (native):** `skills/lnd/templates/lnd.conf.template`
 
-[Bitcoin]
-bitcoin.active=true
-bitcoin.mainnet=true
-bitcoin.node=neutrino
+Note: litd requires `lnd.` prefix for lnd flags (e.g., `lnd.bitcoin.active`).
+Standalone lnd does not use the prefix.
 
-[neutrino]
-neutrino.addpeer=btcd0.lightning.computer
-neutrino.addpeer=mainnet1-btcd.zaphq.io
-neutrino.addpeer=mainnet2-btcd.zaphq.io
-neutrino.feeurl=https://nodes.lightning.computer/fees/v1/btc-fee-estimates.json
+### Key Defaults
 
-[db]
-db.backend=sqlite
-```
+- **Backend:** neutrino (BIP 157/158 light client)
+- **Database:** SQLite
+- **Network:** testnet (override with `--network mainnet`)
+- **Auto-unlock:** enabled via password file
 
-In watch-only mode, `start-lnd.sh` automatically appends:
+## Container Naming & Ports
 
-```ini
-[remotesigner]
-remotesigner.enable=true
-remotesigner.rpchost=<signer-host>
-remotesigner.tlscertpath=~/.lnget/lnd/signer-credentials/tls.cert
-remotesigner.macaroonpath=~/.lnget/lnd/signer-credentials/admin.macaroon
-```
+| Container | Purpose | Ports |
+|-----------|---------|-------|
+| `litd` | Main Lightning Terminal | 8443, 10009, 9735, 8080 |
+| `litd-signer` | Remote signer (lnd) | 10012, 10013 |
+| `litd-bitcoind` | Bitcoin Core (regtest only) | 18443, 28332, 28333 |
 
-Override network:
-
-```bash
-# For testnet
-start-lnd.sh --network testnet
-```
-
-## Ports
+### Port Reference
 
 | Port  | Service   | Description                    |
 |-------|-----------|--------------------------------|
+| 8443  | litd UI   | Lightning Terminal web UI      |
 | 9735  | Lightning | Peer-to-peer Lightning Network |
 | 10009 | gRPC      | lncli and programmatic access  |
-| 8080  | REST      | REST API (wallet unlock, etc.) |
+| 8080  | REST      | REST API (wallet, etc.)        |
+| 10012 | Signer gRPC | Remote signer RPC            |
+| 10013 | Signer REST | Signer REST API              |
 
 ## File Locations
 
 | Path | Purpose |
 |------|---------|
-| `~/.lnget/lnd/lnd.conf` | Configuration file |
 | `~/.lnget/lnd/wallet-password.txt` | Wallet unlock passphrase (0600) |
 | `~/.lnget/lnd/seed.txt` | 24-word mnemonic backup (0600, standalone only) |
 | `~/.lnget/lnd/signer-credentials/` | Imported signer credentials (watch-only) |
-| `~/.lnd/` | lnd data directory (default) |
-| `~/.lnd/data/chain/bitcoin/<network>/` | Chain data and macaroons |
-| `~/.lnd/tls.cert` | TLS certificate |
-| `~/.lnd/tls.key` | TLS private key |
-| `~/.lnd/logs/` | Log files |
+| `versions.env` | Pinned container image versions |
+| `skills/lnd/templates/` | Docker compose and config templates |
+| `skills/lnd/profiles/` | Profile .env files |
+
+## Version Pinning
+
+Container image versions are pinned in `versions.env` at the repo root:
+
+```bash
+LITD_VERSION=v0.16.0-alpha
+LND_VERSION=v0.20.0-beta
+```
+
+Override at runtime:
+
+```bash
+LITD_VERSION=v0.17.0-alpha skills/lnd/scripts/start-lnd.sh
+```
 
 ## Integration with lnget
 
-Once lnd is running with a funded wallet and open channels, configure lnget to
-use it:
+Once litd is running with a funded wallet and open channels:
 
 ```bash
-# Initialize lnget config
 lnget config init
-
-# lnget auto-detects lnd at localhost:10009 with default paths
 lnget ln status
-
-# Fetch an L402-protected resource
 lnget --max-cost 1000 https://api.example.com/paid-data
-```
-
-Or set config explicitly:
-
-```yaml
-# ~/.lnget/config.yaml
-ln:
-  mode: lnd
-  lnd:
-    host: localhost:10009
-    tls_cert: ~/.lnd/tls.cert
-    macaroon: ~/.lnd/data/chain/bitcoin/mainnet/admin.macaroon
-    network: mainnet
-```
-
-**For agents using baked macaroons**, point to the custom macaroon instead:
-
-```yaml
-ln:
-  mode: lnd
-  lnd:
-    host: localhost:10009
-    tls_cert: ~/.lnd/tls.cert
-    macaroon: ~/.lnd/data/chain/bitcoin/mainnet/pay-only.macaroon
-    network: mainnet
 ```
 
 ## Security Considerations
 
-See [references/security.md](references/security.md) for detailed security
-guidance.
+See [references/security.md](references/security.md) for detailed guidance.
 
 **Default model (watch-only with remote signer):**
 - No seed or private keys on the agent machine
-- Signing delegated to a separate signer node via gRPC
-- Credentials bundle (xpubs, TLS cert, macaroon) imported from signer
+- Signing delegated to signer container via gRPC
 - Set up with the `lightning-security-module` skill
 
 **Standalone model (testing only):**
-- Wallet passphrase stored on disk at `~/.lnget/lnd/wallet-password.txt`
-- Seed mnemonic stored on disk at `~/.lnget/lnd/seed.txt`
-- Both files created with mode 0600 (owner read/write only)
-- Suitable for testnet, small amounts, and quick testing
+- Wallet passphrase and seed stored on disk (0600)
+- Suitable for testnet and quick testing
 
 **Macaroon security:**
 - Never give agents the admin macaroon in production
-- Bake custom macaroons with minimum required permissions
-- Use `bakemacaroon` to create scoped credentials for each agent role
-- See the Macaroon Bakery section above for examples
+- Bake scoped macaroons with the `macaroon-bakery` skill
 
 ## Troubleshooting
 
 ### "wallet not found"
-Run `skills/lnd/scripts/create-wallet.sh` to create the wallet first.
+Run `skills/lnd/scripts/create-wallet.sh` to create the wallet.
 
 ### "wallet locked"
-Run `skills/lnd/scripts/unlock-wallet.sh` or restart lnd (auto-unlock is
-enabled by default in the config template).
+Run `skills/lnd/scripts/unlock-wallet.sh`. Auto-unlock is enabled by default.
 
 ### "chain backend is still syncing"
-Neutrino needs time to sync headers. Check progress with:
+Neutrino needs time to sync headers:
 ```bash
 skills/lnd/scripts/lncli.sh getinfo | jq '{synced_to_chain, block_height}'
 ```
 
-### "unable to find a path to destination"
-No route exists. Check channel balances:
+### Container not starting
 ```bash
-skills/lnd/scripts/lncli.sh listchannels | jq '.[].channels[] | {remote_pubkey, local_balance, remote_balance}'
-```
-
-### "connect: connection refused" on lncli
-lnd is not running or not listening. Check:
-```bash
-skills/lnd/scripts/lncli.sh --help  # Verify lncli works
-pgrep lnd                           # Check if lnd process exists
+docker logs litd
+docker logs litd-signer
 ```
 
 ### "remote signer not reachable"
-The watch-only node cannot connect to the signer. Check:
 ```bash
-# Verify signer is running
-curl -sk https://<signer-ip>:10012/v1/state
-
-# Check signer credentials are imported
-ls -la ~/.lnget/lnd/signer-credentials/
-
-# Verify TLS cert matches
-openssl x509 -in ~/.lnget/lnd/signer-credentials/tls.cert -noout -subject
+docker ps | grep litd-signer
+docker logs litd-signer
 ```

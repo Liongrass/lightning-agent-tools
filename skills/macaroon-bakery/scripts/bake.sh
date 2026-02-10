@@ -19,7 +19,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LND_DIR="${LND_DIR:-}"
-NETWORK="${NETWORK:-mainnet}"
+NETWORK="${NETWORK:-testnet}"
 RPC_PORT=""
 SAVE_TO=""
 ROLE=""
@@ -101,7 +101,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --save-to PATH         Output path (default: auto-generated)"
-            echo "  --network NETWORK      Bitcoin network (default: mainnet)"
+            echo "  --network NETWORK      Bitcoin network (default: testnet)"
             echo "  --lnddir DIR           lnd data directory (default: ~/.lnd)"
             echo "  --rpc-port PORT        lnd RPC port (for non-default setups)"
             echo "  --container NAME       Run lncli inside a Docker container"
@@ -158,14 +158,23 @@ fi
 # --- Inspect mode ---
 if [ -n "$INSPECT" ]; then
     if [ -n "$CONTAINER" ]; then
-        # Check file exists inside container.
-        if ! docker exec "$CONTAINER" test -f "$INSPECT"; then
-            echo "Error: Macaroon file not found in container '$CONTAINER': $INSPECT" >&2
+        # The macaroon may be on the host or inside the container. If it
+        # exists on the host, copy it into the container for inspection.
+        if [ -f "$INSPECT" ]; then
+            CONTAINER_TMP="/tmp/inspect-$(date +%s).macaroon"
+            docker cp "$INSPECT" "$CONTAINER:$CONTAINER_TMP"
+            INSPECT_PATH="$CONTAINER_TMP"
+        elif docker exec "$CONTAINER" test -f "$INSPECT" 2>/dev/null; then
+            INSPECT_PATH="$INSPECT"
+        else
+            echo "Error: Macaroon file not found: $INSPECT" >&2
             exit 1
         fi
     elif [ ! -f "$INSPECT" ]; then
         echo "Error: Macaroon file not found: $INSPECT" >&2
         exit 1
+    else
+        INSPECT_PATH="$INSPECT"
     fi
     echo "=== Macaroon: $(basename "$INSPECT") ==="
     echo "Path: $INSPECT"
@@ -173,7 +182,11 @@ if [ -n "$INSPECT" ]; then
         echo "Container: $CONTAINER"
     fi
     echo ""
-    "${LNCLI_CMD[@]}" printmacaroon --macaroon_file "$INSPECT"
+    "${LNCLI_CMD[@]}" printmacaroon --macaroon_file "$INSPECT_PATH"
+    # Clean up temporary copy if we created one.
+    if [ -n "$CONTAINER" ] && [ -f "$INSPECT" ]; then
+        docker exec "$CONTAINER" rm -f "$INSPECT_PATH" 2>/dev/null || true
+    fi
     exit 0
 fi
 
@@ -233,7 +246,7 @@ if [ -n "$ROLE" ]; then
                 "uri:/lnrpc.Lightning/DisconnectPeer"
                 "uri:/lnrpc.Lightning/OpenChannelSync"
                 "uri:/lnrpc.Lightning/CloseChannel"
-                "uri:/lnrpc.Lightning/ListClosedChannels"
+                "uri:/lnrpc.Lightning/ClosedChannels"
                 "uri:/lnrpc.Lightning/GetNodeInfo"
                 "uri:/lnrpc.Lightning/GetChanInfo"
             )

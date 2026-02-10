@@ -29,14 +29,17 @@ skills/macaroon-bakery/scripts/bake.sh --list-permissions
 
 ### Docker
 
-If lnd is running in a Docker container, use `--container`:
+The litd container is auto-detected. You can also specify `--container`:
 
 ```bash
-# Bake a pay-only macaroon on the sam node
-skills/macaroon-bakery/scripts/bake.sh --role pay-only --container sam
+# Auto-detect litd container (default)
+skills/macaroon-bakery/scripts/bake.sh --role pay-only
+
+# Explicit container
+skills/macaroon-bakery/scripts/bake.sh --role pay-only --container litd
 
 # Inspect a macaroon inside a container
-skills/macaroon-bakery/scripts/bake.sh --inspect /root/.lnd/data/chain/bitcoin/regtest/admin.macaroon --container sam
+skills/macaroon-bakery/scripts/bake.sh --inspect /root/.lnd/data/chain/bitcoin/testnet/admin.macaroon --container litd
 ```
 
 ### Remote Nodes
@@ -114,10 +117,13 @@ When using the `lightning-security-module` skill, the credentials bundle include
 signer machine:
 
 ```bash
-# On the signer machine
+# On the signer container
 skills/macaroon-bakery/scripts/bake.sh --role signer-only \
-    --rpc-port 10012 \
-    --lnddir ~/.lnd-signer
+    --container litd-signer --rpc-port 10012
+
+# Or on a native signer
+skills/macaroon-bakery/scripts/bake.sh --role signer-only \
+    --rpc-port 10012 --lnddir ~/.lnd-signer
 
 # Then re-export the credentials bundle with the scoped macaroon
 ```

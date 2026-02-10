@@ -119,6 +119,23 @@ chmod 600 "$CREDS_DIR/tls.cert"
 chmod 600 "$CREDS_DIR/admin.macaroon"
 
 echo ""
+
+# If a litd container is running, copy credentials into it so the
+# remotesigner config paths resolve inside the container.
+if command -v docker &>/dev/null; then
+    for candidate in litd litd-shared; do
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$candidate"; then
+            docker exec "$candidate" mkdir -p /root/.lnd/signer-credentials
+            docker cp "$CREDS_DIR/tls.cert" "$candidate:/root/.lnd/signer-credentials/tls.cert"
+            docker cp "$CREDS_DIR/admin.macaroon" "$candidate:/root/.lnd/signer-credentials/admin.macaroon"
+            docker cp "$CREDS_DIR/accounts.json" "$candidate:/root/.lnd/signer-credentials/accounts.json"
+            echo "  Credentials copied into container '$candidate'."
+            break
+        fi
+    done
+fi
+
+echo ""
 echo "=== Credentials Imported Successfully ==="
 echo ""
 echo "Location: $CREDS_DIR"

@@ -1,24 +1,51 @@
 #!/usr/bin/env bash
-# Start lnd with neutrino backend and SQLite storage.
+# Start litd (Lightning Terminal) — delegates to Docker by default.
 #
 # Usage:
-#   start-lnd.sh                                         # Watch-only (default)
-#   start-lnd.sh --signer-host 10.0.0.5:10012           # Specify signer
-#   start-lnd.sh --mode standalone                       # Standalone mode
-#   start-lnd.sh --network testnet                       # Testnet
-#   start-lnd.sh --foreground                            # Run in foreground
-#   start-lnd.sh --extra-args "--debuglevel=trace"
+#   start-lnd.sh                                         # Docker (default)
+#   start-lnd.sh --watchonly                             # Watch-only + signer
+#   start-lnd.sh --regtest                               # Regtest with bitcoind
+#   start-lnd.sh --network mainnet                       # Override network
+#   start-lnd.sh --profile taproot                       # Load profile
+#   start-lnd.sh --native                                # Native lnd (no Docker)
+#   start-lnd.sh --native --mode standalone              # Native standalone
+#   start-lnd.sh --native --signer-host 10.0.0.5:10012  # Native watch-only
 #
-# Modes:
-#   watchonly   (default) — connects to remote signer, no keys on this machine
-#   standalone  — full lnd with local keys (less secure, for testing)
+# By default, this script delegates to docker-start.sh. Use --native to
+# run lnd as a local process (requires lnd built from source).
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NATIVE=false
+
+# Check for --native flag before parsing other args.
+PASS_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--native" ]; then
+        NATIVE=true
+    else
+        PASS_ARGS+=("$arg")
+    fi
+done
+
+# If not native mode, delegate to docker-start.sh.
+if [ "$NATIVE" = false ]; then
+    if command -v docker &>/dev/null; then
+        exec "$SCRIPT_DIR/docker-start.sh" "${PASS_ARGS[@]}"
+    else
+        echo "Docker not available. Falling back to native mode." >&2
+        echo "Install Docker or use --native explicitly." >&2
+        echo ""
+        NATIVE=true
+    fi
+fi
+
+# --- Native mode: original lnd startup logic ---
+
 LNGET_LND_DIR="${LNGET_LND_DIR:-$HOME/.lnget/lnd}"
 LND_DIR="${LND_DIR:-$HOME/.lnd}"
-NETWORK="mainnet"
+NETWORK="testnet"
 FOREGROUND=false
 EXTRA_ARGS=""
 CONF_FILE="$LNGET_LND_DIR/lnd.conf"
@@ -26,6 +53,7 @@ MODE="watchonly"
 SIGNER_HOST="${LND_SIGNER_HOST:-}"
 
 # Parse arguments.
+set -- "${PASS_ARGS[@]}"
 while [[ $# -gt 0 ]]; do
     case $1 in
         --mode)
@@ -55,12 +83,13 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: start-lnd.sh [options]"
             echo ""
-            echo "Start lnd with neutrino backend."
+            echo "Start lnd natively (without Docker)."
             echo ""
             echo "Options:"
+            echo "  --native             Run lnd as a local process (required)"
             echo "  --mode MODE          Node mode: watchonly (default) or standalone"
             echo "  --signer-host HOST   Signer RPC address (e.g., 10.0.0.5:10012)"
-            echo "  --network NETWORK    Bitcoin network (default: mainnet)"
+            echo "  --network NETWORK    Bitcoin network (default: testnet)"
             echo "  --lnddir DIR         lnd data directory (default: ~/.lnd)"
             echo "  --foreground         Run in foreground (default: background)"
             echo "  --extra-args ARGS    Additional lnd arguments"
@@ -88,7 +117,7 @@ fi
 
 # Verify lnd is installed.
 if ! command -v lnd &>/dev/null; then
-    echo "Error: lnd not found. Run install.sh first." >&2
+    echo "Error: lnd not found. Run install.sh --source first." >&2
     exit 1
 fi
 
@@ -103,7 +132,7 @@ fi
 if [ "$MODE" = "watchonly" ]; then
     if [ -z "$SIGNER_HOST" ]; then
         echo "Error: --signer-host is required in watchonly mode." >&2
-        echo "Example: start-lnd.sh --signer-host 10.0.0.5:10012" >&2
+        echo "Example: start-lnd.sh --native --signer-host 10.0.0.5:10012" >&2
         echo "Or set LND_SIGNER_HOST environment variable." >&2
         exit 1
     fi
@@ -139,8 +168,7 @@ fi
 if [ "$MODE" = "watchonly" ] && [ -f "$CONF_FILE" ]; then
     CREDS_DIR="$LNGET_LND_DIR/signer-credentials"
 
-    # Replace the commented remotesigner section with active config.
-    # Remove any existing remotesigner lines (commented or not).
+    # Remove any existing remotesigner lines.
     sed -i.bak '/^\# \[remotesigner\]/,/^\# remotesigner\./d' "$CONF_FILE"
     rm -f "$CONF_FILE.bak"
 
@@ -157,7 +185,7 @@ EOF
     echo "Remote signer configured: $SIGNER_HOST"
 fi
 
-echo "=== Starting lnd ==="
+echo "=== Starting lnd (native) ==="
 echo "Mode:     $MODE"
 echo "Network:  $NETWORK"
 echo "Data dir: $LND_DIR"

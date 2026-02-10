@@ -55,8 +55,9 @@ neutrino.addpeer=btcd0.lightning.computer
 neutrino.addpeer=mainnet1-btcd.zaphq.io
 neutrino.addpeer=mainnet2-btcd.zaphq.io
 
-# Fee estimation URL.
-neutrino.feeurl=https://nodes.lightning.computer/fees/v1/btc-fee-estimates.json
+# Fee estimation URL (required for neutrino on mainnet).
+# Testnet: https://nodes.lightning.computer/fees/v1/btctestnet-fee-estimates.json
+fee.url=https://nodes.lightning.computer/fees/v1/btc-fee-estimates.json
 
 # Maximum peers for neutrino.
 neutrino.maxpeers=8

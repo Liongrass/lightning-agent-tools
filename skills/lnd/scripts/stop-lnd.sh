@@ -1,16 +1,63 @@
 #!/usr/bin/env bash
-# Stop lnd gracefully.
+# Stop litd / lnd — delegates to Docker by default.
 #
 # Usage:
-#   stop-lnd.sh                    # Graceful stop via lncli
-#   stop-lnd.sh --container sam    # Stop lnd in Docker container
+#   stop-lnd.sh                    # Docker stop (auto-detect)
+#   stop-lnd.sh --clean            # Docker stop + remove volumes
+#   stop-lnd.sh --watchonly        # Docker stop watch-only mode
+#   stop-lnd.sh --native           # Stop native lnd process
+#   stop-lnd.sh --native --force   # SIGTERM native process
+#   stop-lnd.sh --container sam    # Stop specific container
 #   stop-lnd.sh --rpcserver remote:10009 --tlscertpath ~/tls.cert --macaroonpath ~/admin.macaroon
-#   stop-lnd.sh --force            # SIGTERM immediately
+#
+# By default, this script delegates to docker-stop.sh. Use --native for
+# stopping a local lnd process.
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NATIVE=false
+
+# Check for --native flag before parsing other args.
+PASS_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--native" ]; then
+        NATIVE=true
+    else
+        PASS_ARGS+=("$arg")
+    fi
+done
+
+# If not native mode, delegate to docker-stop.sh.
+if [ "$NATIVE" = false ]; then
+    # Check if we have Docker-specific args or a running container.
+    HAS_CONTAINER_ARG=false
+    for arg in "${PASS_ARGS[@]}"; do
+        if [ "$arg" = "--container" ]; then
+            HAS_CONTAINER_ARG=true
+            break
+        fi
+    done
+
+    # If --container is specified, use the old container-specific stop logic.
+    if [ "$HAS_CONTAINER_ARG" = true ]; then
+        NATIVE=true
+    elif command -v docker &>/dev/null; then
+        # Check if any litd containers are running.
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE '^litd'; then
+            exec "$SCRIPT_DIR/docker-stop.sh" "${PASS_ARGS[@]}"
+        fi
+        # No litd containers found, fall through to native.
+        NATIVE=true
+    else
+        NATIVE=true
+    fi
+fi
+
+# --- Native / container-specific stop logic ---
+
 LND_DIR="${LND_DIR:-}"
-NETWORK="${NETWORK:-mainnet}"
+NETWORK="${NETWORK:-testnet}"
 FORCE=false
 CONTAINER=""
 RPCSERVER=""
@@ -18,6 +65,7 @@ TLSCERTPATH=""
 MACAROONPATH=""
 
 # Parse arguments.
+set -- "${PASS_ARGS[@]}"
 while [[ $# -gt 0 ]]; do
     case $1 in
         --force)
@@ -44,18 +92,29 @@ while [[ $# -gt 0 ]]; do
             MACAROONPATH="$2"
             shift 2
             ;;
+        --clean|-v|--watchonly|--regtest|--all)
+            # These are docker-stop.sh flags; pass through.
+            echo "Forwarding to docker-stop.sh (flag: $1)..."
+            exec "$SCRIPT_DIR/docker-stop.sh" "${PASS_ARGS[@]}"
+            ;;
         -h|--help)
             echo "Usage: stop-lnd.sh [options]"
             echo ""
-            echo "Stop lnd gracefully."
+            echo "Stop litd / lnd."
             echo ""
-            echo "Options:"
-            echo "  --force                Send SIGTERM immediately (or docker stop for containers)"
-            echo "  --network NETWORK      Bitcoin network (default: mainnet)"
-            echo "  --container NAME       Stop lnd running inside a Docker container"
-            echo "  --rpcserver HOST:PORT  Connect to a remote lnd node"
-            echo "  --tlscertpath PATH     TLS certificate for remote connection"
-            echo "  --macaroonpath PATH    Macaroon for remote authentication"
+            echo "Docker options (default):"
+            echo "  --clean, -v       Remove volumes (clean state)"
+            echo "  --watchonly        Stop watch-only + signer containers"
+            echo "  --regtest          Stop regtest containers"
+            echo "  --all              Stop all litd containers"
+            echo ""
+            echo "Native options (--native):"
+            echo "  --native               Stop native lnd process"
+            echo "  --force                Send SIGTERM immediately"
+            echo "  --container NAME       Stop lnd in a specific container"
+            echo "  --rpcserver HOST:PORT  Remote lnd node"
+            echo "  --tlscertpath PATH     TLS certificate for remote"
+            echo "  --macaroonpath PATH    Macaroon for remote"
             exit 0
             ;;
         *)
