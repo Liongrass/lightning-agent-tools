@@ -1,7 +1,7 @@
 {
   "name": "lightning-agent-kit",
-  "description": "Lightning Network agent toolkit. Skills for running lnd nodes, fetching L402-protected resources with lnget, hosting paid API endpoints with Aperture, and an MCP server for AI assistant integration.",
-  "version": "0.1.0",
+  "description": "Lightning Network agent toolkit. Container-first skills for running Lightning Terminal (litd) nodes with lnd, loop, pool, and tapd. Includes remote signer security, L402 commerce with lnget and Aperture, scoped macaroon credentials, and MCP server integration.",
+  "version": "0.2.0",
   "author": {
     "name": "Lightning Labs"
   },
