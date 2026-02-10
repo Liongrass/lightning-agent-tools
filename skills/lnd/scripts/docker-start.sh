@@ -5,6 +5,7 @@
 #   docker-start.sh                          # Standalone litd, testnet (default)
 #   docker-start.sh --watchonly              # Watch-only + signer (production)
 #   docker-start.sh --regtest                # Regtest with bitcoind (dev)
+#   docker-start.sh --watchonly --regtest    # Watch-only + signer on regtest
 #   docker-start.sh --network mainnet        # Override network
 #   docker-start.sh --profile taproot        # Load profile
 #   docker-start.sh --foreground             # Run in foreground (show logs)
@@ -21,11 +22,13 @@ VERSIONS_FILE="$SCRIPT_DIR/../../../versions.env"
 LIB_DIR="$SCRIPT_DIR/../../lib"
 
 MODE="standalone"
+REGTEST=false
 BUILD=false
 DETACH=true
 PROFILE=""
 CUSTOM_ARGS=""
 CUSTOM_NETWORK=""
+DOCKER_NETWORK=""
 
 # Source pinned versions so compose files pick them up as env vars.
 if [ -f "$VERSIONS_FILE" ]; then
@@ -45,7 +48,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --regtest)
-            MODE="regtest"
+            REGTEST=true
             shift
             ;;
         --build)
@@ -62,6 +65,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --network)
             CUSTOM_NETWORK="$2"
+            shift 2
+            ;;
+        --docker-network)
+            DOCKER_NETWORK="$2"
             shift 2
             ;;
         --args|-a)
@@ -86,19 +93,21 @@ while [[ $# -gt 0 ]]; do
             echo "Start litd (Lightning Terminal) containers."
             echo ""
             echo "Modes:"
-            echo "  (default)         Standalone litd with neutrino (testnet)"
-            echo "  --watchonly        Watch-only litd + remote signer"
-            echo "  --regtest          litd + bitcoind for local development"
+            echo "  (default)              Standalone litd with neutrino (testnet)"
+            echo "  --watchonly            Watch-only litd + remote signer"
+            echo "  --regtest              litd + bitcoind for local development"
+            echo "  --watchonly --regtest  Watch-only + signer on regtest"
             echo ""
             echo "Configuration:"
-            echo "  --profile, -p     Load profile (taproot, wumbo, debug, regtest)"
-            echo "  --network NET     Override network (testnet, mainnet, signet)"
-            echo "  --args, -a        Extra litd arguments (quoted string)"
-            echo "  --list-profiles   Show available profiles"
+            echo "  --profile, -p         Load profile (taproot, wumbo, debug, regtest)"
+            echo "  --network NET         Override network (testnet, mainnet, signet)"
+            echo "  --docker-network NET  Docker network to join (for external bitcoind)"
+            echo "  --args, -a            Extra litd arguments (quoted string)"
+            echo "  --list-profiles       Show available profiles"
             echo ""
             echo "Options:"
-            echo "  --build           Rebuild images before starting"
-            echo "  --foreground, -f  Run in foreground (show logs)"
+            echo "  --build               Rebuild images before starting"
+            echo "  --foreground, -f      Run in foreground (show logs)"
             exit 0
             ;;
         *)
@@ -107,6 +116,12 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Handle --regtest flag: if MODE is still standalone, set to regtest.
+# If MODE is watchonly, keep it as watchonly but set network to regtest.
+if [ "$REGTEST" = true ] && [ "$MODE" = "standalone" ]; then
+    MODE="regtest"
+fi
 
 # Load profile if specified.
 if [ -n "$PROFILE" ]; then
@@ -149,6 +164,13 @@ case "$MODE" in
         ;;
 esac
 
+# Determine effective network (regtest flag overrides for watchonly mode).
+if [ "$REGTEST" = true ]; then
+    EFFECTIVE_NETWORK="regtest"
+else
+    EFFECTIVE_NETWORK="${NETWORK:-testnet}"
+fi
+
 # --- Generate runtime config from template ---
 
 LNGET_LND_DIR="${LNGET_LND_DIR:-$HOME/.lnget/lnd}"
@@ -179,7 +201,7 @@ case "$MODE" in
         generate_litd_config \
             "$TEMPLATE_DIR/litd-watchonly.conf.template" \
             "$LNGET_LND_DIR/litd.conf" \
-            "${NETWORK:-testnet}" \
+            "$EFFECTIVE_NETWORK" \
             "${LND_DEBUG:-info}" \
             "${NODE_ALIAS:-litd-agent}" \
             "${UI_PASSWORD:-agent-litd-password}" \
@@ -189,7 +211,7 @@ case "$MODE" in
         generate_lnd_config \
             "$SIGNER_TEMPLATE_DIR/signer-lnd.conf.template" \
             "$LNGET_LND_DIR/signer-lnd.conf" \
-            "${NETWORK:-testnet}" \
+            "$EFFECTIVE_NETWORK" \
             "${SIGNER_DEBUG:-info}" \
             ""
 
@@ -203,10 +225,10 @@ export LITD_CONF_PATH="$LNGET_LND_DIR/litd.conf"
 
 cd "$TEMPLATE_DIR"
 
-echo "=== Starting litd ($MODE mode) ==="
+echo "=== Starting litd ($MODE mode$([ "$REGTEST" = true ] && [ "$MODE" = "watchonly" ] && echo " + regtest")) ==="
 echo "  Compose:  $COMPOSE_FILE"
 echo "  Config:   $LITD_CONF_PATH"
-echo "  Network:  ${NETWORK:-testnet}"
+echo "  Network:  $EFFECTIVE_NETWORK"
 if [ -n "$PROFILE" ]; then
     echo "  Profile:  $PROFILE"
 fi
@@ -230,6 +252,20 @@ fi
 
 echo "Running: $CMD"
 eval "$CMD"
+
+# When watchonly + regtest, join the regtest Docker network so the signer and
+# litd can reach the existing bitcoind container.
+if [ "$REGTEST" = true ] && [ "$MODE" = "watchonly" ]; then
+    REGTEST_NETWORK="${DOCKER_NETWORK:-$(docker network ls --filter name=regtest --format '{{.Name}}' | head -1)}"
+    if [ -n "$REGTEST_NETWORK" ]; then
+        echo "Connecting containers to regtest network: $REGTEST_NETWORK"
+        docker network connect "$REGTEST_NETWORK" litd-signer 2>/dev/null || true
+        docker network connect "$REGTEST_NETWORK" litd 2>/dev/null || true
+    else
+        echo "Warning: No regtest Docker network found." >&2
+        echo "Start regtest bitcoind first, or use --docker-network to specify." >&2
+    fi
+fi
 
 if [ "$DETACH" = true ]; then
     echo ""
