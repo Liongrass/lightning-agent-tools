@@ -16,9 +16,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/config"
-	lnccontext "github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/context"
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/logging"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/config"
+	lnccontext "github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/context"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/logging"
 	"go.uber.org/zap"
 )
 

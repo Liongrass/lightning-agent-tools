@@ -9,10 +9,10 @@ package services
 import (
 	"context"
 
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/errors"
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/interfaces"
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/logging"
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/tools"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/errors"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/interfaces"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/logging"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/tools"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"

@@ -9,7 +9,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/interfaces"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/interfaces"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"

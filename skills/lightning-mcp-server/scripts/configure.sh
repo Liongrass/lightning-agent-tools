@@ -8,12 +8,12 @@
 #   configure.sh --dev --mailbox host   # Custom mailbox server
 #   configure.sh --dev --insecure       # Dev mode with TLS verification disabled
 #
-# Writes to mcp-server/.env in the lightning-agent-kit repo.
+# Writes to lightning-mcp-server/.env in the lightning-agent-kit repo.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MCP_SERVER_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)/mcp-server"
+MCP_SERVER_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)/lightning-mcp-server"
 
 MAILBOX=""
 DEV_MODE=""
@@ -66,9 +66,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Verify mcp-server directory exists.
+# Verify lightning-mcp-server directory exists.
 if [ ! -d "$MCP_SERVER_DIR" ]; then
-    echo "Error: mcp-server/ directory not found at $MCP_SERVER_DIR" >&2
+    echo "Error: lightning-mcp-server/ directory not found at $MCP_SERVER_DIR" >&2
     exit 1
 fi
 
@@ -126,5 +126,5 @@ chmod 600 "$ENV_FILE"
 echo "Configuration written to $ENV_FILE (mode 0600)"
 echo ""
 echo "Next steps:"
-echo "  1. Add to Claude Code: skills/mcp-lnc/scripts/setup-claude-config.sh"
+echo "  1. Add to Claude Code: skills/lightning-mcp-server/scripts/setup-claude-config.sh"
 echo "  2. Restart Claude Code to pick up the new MCP server"

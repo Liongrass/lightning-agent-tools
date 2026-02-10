@@ -20,7 +20,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 
 	config := LoadConfig()
 
-	assert.Equal(t, "lnc-mcp-server", config.ServerName)
+	assert.Equal(t, "lightning-mcp-server", config.ServerName)
 	assert.Equal(t, "1.0.0", config.ServerVersion)
 	assert.False(t, config.Development) // Default is false.
 	assert.Equal(t, "mailbox.terminal.lightning.today:443",
@@ -44,7 +44,7 @@ func TestLoadConfig_EnvironmentVariables(t *testing.T) {
 
 	config := LoadConfig()
 
-	assert.Equal(t, "lnc-mcp-server", config.ServerName)
+	assert.Equal(t, "lightning-mcp-server", config.ServerName)
 	assert.Equal(t, "1.0.0", config.ServerVersion)
 	assert.False(t, config.Development)
 	assert.Equal(t, "test.server:443", config.DefaultMailboxServer)

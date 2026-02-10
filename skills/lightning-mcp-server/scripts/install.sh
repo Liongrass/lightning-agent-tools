@@ -2,7 +2,7 @@
 # Build and install the MCP LNC server from source.
 #
 # Usage:
-#   install.sh              # Build from mcp-server/ in this repo
+#   install.sh              # Build from lightning-mcp-server/ in this repo
 #   install.sh --release    # Build optimized release binary
 #
 # Prerequisites: Go 1.24+
@@ -10,7 +10,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MCP_SERVER_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)/mcp-server"
+MCP_SERVER_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)/lightning-mcp-server"
 RELEASE=false
 
 # Parse arguments.
@@ -49,9 +49,9 @@ fi
 GO_VERSION=$(go version | grep -oE 'go[0-9]+\.[0-9]+' | head -1)
 echo "Go version: $GO_VERSION"
 
-# Verify mcp-server directory exists.
+# Verify lightning-mcp-server directory exists.
 if [ ! -d "$MCP_SERVER_DIR" ]; then
-    echo "Error: mcp-server/ directory not found at $MCP_SERVER_DIR" >&2
+    echo "Error: lightning-mcp-server/ directory not found at $MCP_SERVER_DIR" >&2
     echo "Are you running this from the lightning-agent-kit repo?" >&2
     exit 1
 fi
@@ -72,25 +72,25 @@ cd "$MCP_SERVER_DIR"
 if [ "$RELEASE" = true ]; then
     echo "Building release binary..."
     COMMIT=$(git describe --abbrev=40 --always --dirty 2>/dev/null || echo "unknown")
-    PKG="github.com/lightninglabs/lightning-agent-kit/mcp-server"
-    go build -v -ldflags "-X ${PKG}.Commit=${COMMIT}" -o "$GOBIN/mcp-lnc-server" .
+    PKG="github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server"
+    go build -v -ldflags "-X ${PKG}.Commit=${COMMIT}" -o "$GOBIN/lightning-mcp-server" .
 else
     echo "Building debug binary..."
     COMMIT=$(git describe --abbrev=40 --always --dirty 2>/dev/null || echo "unknown")
-    PKG="github.com/lightninglabs/lightning-agent-kit/mcp-server"
-    go build -v -tags "dev" -ldflags "-X ${PKG}.Commit=${COMMIT}" -o "$GOBIN/mcp-lnc-server" .
+    PKG="github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server"
+    go build -v -tags "dev" -ldflags "-X ${PKG}.Commit=${COMMIT}" -o "$GOBIN/lightning-mcp-server" .
 fi
 
 echo "Done."
 echo ""
 
 # Verify installation.
-if command -v mcp-lnc-server &>/dev/null; then
-    echo "mcp-lnc-server installed: $(which mcp-lnc-server)"
-    mcp-lnc-server -version 2>/dev/null || true
+if command -v lightning-mcp-server &>/dev/null; then
+    echo "lightning-mcp-server installed: $(which lightning-mcp-server)"
+    lightning-mcp-server -version 2>/dev/null || true
 else
-    echo "Warning: mcp-lnc-server not found on PATH." >&2
-    echo "Binary built at: $GOBIN/mcp-lnc-server" >&2
+    echo "Warning: lightning-mcp-server not found on PATH." >&2
+    echo "Binary built at: $GOBIN/lightning-mcp-server" >&2
     echo "Ensure \$GOPATH/bin is in your PATH." >&2
     echo "  export PATH=\$PATH:\$(go env GOPATH)/bin" >&2
 fi
@@ -99,5 +99,5 @@ echo ""
 echo "Installation complete."
 echo ""
 echo "Next steps:"
-echo "  1. Configure: skills/mcp-lnc/scripts/configure.sh"
-echo "  2. Add to Claude Code: skills/mcp-lnc/scripts/setup-claude-config.sh"
+echo "  1. Configure: skills/lightning-mcp-server/scripts/configure.sh"
+echo "  2. Add to Claude Code: skills/lightning-mcp-server/scripts/setup-claude-config.sh"

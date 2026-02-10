@@ -7,7 +7,7 @@ package logging
 import (
 	"context"
 
-	lnccontext "github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/context"
+	lnccontext "github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/context"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

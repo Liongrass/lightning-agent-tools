@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec/v2"
-	lnccontext "github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/context"
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/logging"
+	lnccontext "github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/context"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/logging"
 	"github.com/lightninglabs/lightning-node-connect/mailbox"
 	"github.com/lightningnetwork/lnd/keychain"
 	"github.com/lightningnetwork/lnd/lnrpc"

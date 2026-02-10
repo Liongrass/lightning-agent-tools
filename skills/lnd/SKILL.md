@@ -186,15 +186,15 @@ skills/lnd/scripts/lncli.sh \
 
 ## MCP / Lightning Node Connect
 
-For read-only access without direct gRPC connectivity, use the `mcp-lnc` skill
-with Lightning Node Connect (LNC). LNC uses encrypted WebSocket tunnels — no TLS
-certs, macaroons, or open ports needed. Just a pairing phrase from Lightning
-Terminal.
+For read-only access without direct gRPC connectivity, use the
+`lightning-mcp-server` skill with Lightning Node Connect (LNC). LNC uses
+encrypted WebSocket tunnels — no TLS certs, macaroons, or open ports needed.
+Just a pairing phrase from Lightning Terminal.
 
 ```bash
-skills/mcp-lnc/scripts/install.sh
-skills/mcp-lnc/scripts/configure.sh
-skills/mcp-lnc/scripts/setup-claude-config.sh
+skills/lightning-mcp-server/scripts/install.sh
+skills/lightning-mcp-server/scripts/configure.sh
+skills/lightning-mcp-server/scripts/setup-claude-config.sh
 ```
 
 ## Wallet Setup

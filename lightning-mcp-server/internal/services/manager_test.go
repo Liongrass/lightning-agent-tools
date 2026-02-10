@@ -6,8 +6,8 @@ package services
 import (
 	"testing"
 
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/interfaces"
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/logging"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/interfaces"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/logging"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -32,7 +32,7 @@ graph TD
         mb["macaroon-bakery<br/><i>scoped credentials</i>"]
         lg["lnget<br/><i>L402 HTTP client</i>"]
         ap["aperture<br/><i>L402 reverse proxy</i>"]
-        mcp["mcp-lnc<br/><i>MCP server</i>"]
+        mcp["lightning-mcp-server<br/><i>MCP server</i>"]
         com["commerce<br/><i>buyer/seller workflows</i>"]
     end
 
@@ -41,7 +41,7 @@ graph TD
         signer_d["lnd signer"]
         aperture_d["aperture proxy"]
         lnget_d["lnget CLI"]
-        mcp_d["mcp-lnc-server"]
+        mcp_d["lightning-mcp-server"]
     end
 
     lnd --> lnd_d
@@ -75,7 +75,7 @@ L402 reverse proxy that gates access to a backend service behind Lightning
 invoices. The `commerce` skill ties these together into buyer and seller
 workflows.
 
-**Node access.** The `mcp-lnc` skill builds and configures an MCP server that
+**Node access.** The `lightning-mcp-server` skill builds and configures an MCP server that
 connects to a Lightning node via Lightning Node Connect (encrypted WebSocket
 tunnels, pairing-phrase auth, no stored credentials). It exposes 18 read-only
 tools for querying node state and works with any MCP-compatible client.
@@ -92,9 +92,9 @@ and a pairing phrase.
 git clone https://github.com/lightninglabs/lightning-agent-kit.git
 cd lightning-agent-kit
 
-skills/mcp-lnc/scripts/install.sh
-skills/mcp-lnc/scripts/configure.sh --production
-skills/mcp-lnc/scripts/setup-claude-config.sh --scope project
+skills/lightning-mcp-server/scripts/install.sh
+skills/lightning-mcp-server/scripts/configure.sh --production
+skills/lightning-mcp-server/scripts/setup-claude-config.sh --scope project
 ```
 
 Restart Claude Code, then:
@@ -165,7 +165,7 @@ Export credentials from my signer and set up a watch-only node
 | **macaroon-bakery** | Bakes scoped macaroons (pay-only, invoice-only, read-only, channel-admin, signer-only) for least-privilege access. |
 | **lnget** | Command-line HTTP client with automatic L402 payment. Pays Lightning invoices on 402 responses, caches tokens, retries. |
 | **aperture** | L402 reverse proxy. Sits in front of a backend service, issues invoices, validates paid tokens, proxies authorized requests. |
-| **mcp-lnc** | Builds and configures the MCP server for LNC-based read-only access to a Lightning node. 18 tools, no stored credentials. |
+| **lightning-mcp-server** | Builds and configures the MCP server for LNC-based read-only access to a Lightning node. 18 tools, no stored credentials. |
 | **commerce** | Meta-skill orchestrating lnd + lnget + aperture for end-to-end buyer/seller workflows. |
 
 All scripts support `--container` for Docker-based lnd nodes and `--rpcserver`
@@ -243,4 +243,4 @@ can be overridden via environment variables.
 
 ## License
 
-See [LICENSE](mcp-server/LICENSE).
+See [LICENSE](lightning-mcp-server/LICENSE).

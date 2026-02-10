@@ -9,7 +9,7 @@
 skills/lnd/scripts/install.sh                              # litd container image
 skills/lnget/scripts/install.sh                            # lnget CLI (always built from source)
 skills/aperture/scripts/install.sh                         # aperture (always built from source)
-skills/mcp-lnc/scripts/install.sh                          # MCP server (always built from source)
+skills/lightning-mcp-server/scripts/install.sh                          # MCP server (always built from source)
 skills/lightning-security-module/scripts/install.sh         # lnd signer container image
 ```
 
@@ -151,12 +151,12 @@ skills/aperture/scripts/stop.sh                            # stop proxy
 ## MCP Server
 
 ```bash
-skills/mcp-lnc/scripts/install.sh                         # build from source
-skills/mcp-lnc/scripts/configure.sh                        # generate .env
-skills/mcp-lnc/scripts/configure.sh --production           # mainnet config
-skills/mcp-lnc/scripts/configure.sh --dev --insecure       # regtest config
-skills/mcp-lnc/scripts/setup-claude-config.sh --scope project   # add to .mcp.json
-skills/mcp-lnc/scripts/setup-claude-config.sh --scope global    # add to ~/.claude.json
+skills/lightning-mcp-server/scripts/install.sh                         # build from source
+skills/lightning-mcp-server/scripts/configure.sh                        # generate .env
+skills/lightning-mcp-server/scripts/configure.sh --production           # mainnet config
+skills/lightning-mcp-server/scripts/configure.sh --dev --insecure       # regtest config
+skills/lightning-mcp-server/scripts/setup-claude-config.sh --scope project   # add to .mcp.json
+skills/lightning-mcp-server/scripts/setup-claude-config.sh --scope global    # add to ~/.claude.json
 ```
 
 ## Remote Signer
@@ -248,7 +248,7 @@ skills/macaroon-bakery/scripts/bake.sh --role pay-only \
 | `~/.lnd-signer/` | Signer lnd data |
 | `~/.aperture/aperture.yaml` | Aperture configuration |
 | `~/.aperture/aperture.db` | Aperture token database |
-| `mcp-server/.env` | MCP server config |
+| `lightning-mcp-server/.env` | MCP server config |
 
 ## Ports
 

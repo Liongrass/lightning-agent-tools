@@ -9,7 +9,7 @@ package logging
 import (
 	"os"
 
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/interfaces"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/interfaces"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
