@@ -1,16 +1,65 @@
 #!/usr/bin/env bash
-# Stop the remote signer lnd node gracefully.
+# Stop the remote signer — delegates to Docker by default.
 #
 # Usage:
-#   stop-signer.sh                    # Graceful stop via lncli
-#   stop-signer.sh --container sam    # Stop signer in Docker container
+#   stop-signer.sh                          # Docker stop (auto-detect)
+#   stop-signer.sh --clean                  # Docker stop + remove volumes
+#   stop-signer.sh --native                 # Stop native signer process
+#   stop-signer.sh --native --force         # SIGTERM native process
+#   stop-signer.sh --container litd-signer  # Explicit container
 #   stop-signer.sh --rpcserver remote:10012 --tlscertpath ~/tls.cert --macaroonpath ~/admin.macaroon
-#   stop-signer.sh --force            # SIGTERM immediately
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NATIVE=false
+
+# Check for --native flag before parsing other args.
+PASS_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--native" ]; then
+        NATIVE=true
+    else
+        PASS_ARGS+=("$arg")
+    fi
+done
+
+# If not native mode, delegate to docker-stop.sh.
+if [ "$NATIVE" = false ]; then
+    # Check if we have a --container arg or docker-specific flags.
+    HAS_CONTAINER_ARG=false
+    HAS_RPCSERVER=false
+    for arg in "${PASS_ARGS[@]}"; do
+        if [ "$arg" = "--container" ]; then
+            HAS_CONTAINER_ARG=true
+        fi
+        if [ "$arg" = "--rpcserver" ]; then
+            HAS_RPCSERVER=true
+        fi
+    done
+
+    # If --rpcserver is specified, fall through to native stop logic (remote
+    # mode needs lncli).
+    if [ "$HAS_RPCSERVER" = true ]; then
+        NATIVE=true
+    elif [ "$HAS_CONTAINER_ARG" = true ]; then
+        # Explicit container — use native stop logic (handles docker exec).
+        NATIVE=true
+    elif command -v docker &>/dev/null; then
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'litd-signer'; then
+            exec "$SCRIPT_DIR/docker-stop.sh" "${PASS_ARGS[@]}"
+        fi
+        # No signer container found, fall through to native.
+        NATIVE=true
+    else
+        NATIVE=true
+    fi
+fi
+
+# --- Native / container-specific stop logic ---
+
 LND_SIGNER_DIR="${LND_SIGNER_DIR:-}"
-NETWORK="${NETWORK:-mainnet}"
+NETWORK="${NETWORK:-testnet}"
 RPC_PORT=10012
 FORCE=false
 CONTAINER=""
@@ -19,6 +68,7 @@ TLSCERTPATH=""
 MACAROONPATH=""
 
 # Parse arguments.
+set -- "${PASS_ARGS[@]}"
 while [[ $# -gt 0 ]]; do
     case $1 in
         --force)
@@ -49,19 +99,26 @@ while [[ $# -gt 0 ]]; do
             MACAROONPATH="$2"
             shift 2
             ;;
+        --clean|-v)
+            # Docker-specific flags; delegate to docker-stop.sh.
+            exec "$SCRIPT_DIR/docker-stop.sh" "${PASS_ARGS[@]}"
+            ;;
         -h|--help)
             echo "Usage: stop-signer.sh [options]"
             echo ""
-            echo "Stop the remote signer lnd node."
+            echo "Stop the remote signer."
             echo ""
-            echo "Options:"
-            echo "  --force                Send SIGTERM immediately (or docker stop for containers)"
-            echo "  --network NETWORK      Bitcoin network (default: mainnet)"
-            echo "  --rpc-port PORT        Signer RPC port (default: 10012)"
-            echo "  --container NAME       Stop lnd running inside a Docker container"
+            echo "Docker options (default):"
+            echo "  --clean, -v            Remove volumes (clean state)"
+            echo ""
+            echo "Native options (--native):"
+            echo "  --native               Stop native signer process"
+            echo "  --force                Send SIGTERM immediately"
+            echo "  --container NAME       Stop signer in a specific container"
             echo "  --rpcserver HOST:PORT  Connect to a remote signer node"
             echo "  --tlscertpath PATH     TLS certificate for remote connection"
             echo "  --macaroonpath PATH    Macaroon for remote authentication"
+            echo "  --rpc-port PORT        Signer RPC port (default: 10012)"
             exit 0
             ;;
         *)

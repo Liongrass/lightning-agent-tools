@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # Export credentials bundle from a running signer for watch-only node import.
 #
-# Usage:
-#   export-credentials.sh                               # Default (local signer)
-#   export-credentials.sh --container sam               # Signer in Docker
-#   export-credentials.sh --rpcserver remote:10012 \    # Remote signer
+# Container mode (default — auto-detects litd-signer container):
+#   export-credentials.sh                             # Auto-detect container
+#   export-credentials.sh --container litd-signer     # Explicit container
+#
+# Native mode:
+#   export-credentials.sh --native                    # Local signer
+#   export-credentials.sh --native --network testnet  # Testnet
+#   export-credentials.sh --native --output /path     # Custom output dir
+#
+# Remote mode:
+#   export-credentials.sh --rpcserver remote:10012 \
 #                         --tlscertpath ~/tls.cert \
 #                         --macaroonpath ~/admin.macaroon
-#   export-credentials.sh --network testnet             # Testnet
-#   export-credentials.sh --output /path/to/output      # Custom output dir
 #
 # Produces:
 #   ~/.lnget/signer/credentials-bundle/accounts.json
@@ -20,10 +25,11 @@ set -e
 
 LNGET_SIGNER_DIR="${LNGET_SIGNER_DIR:-$HOME/.lnget/signer}"
 LND_SIGNER_DIR="${LND_SIGNER_DIR:-}"
-NETWORK="mainnet"
+NETWORK="testnet"
 RPC_PORT=10012
 OUTPUT_DIR=""
 CONTAINER=""
+NATIVE=false
 RPCSERVER=""
 TLSCERTPATH=""
 MACAROONPATH=""
@@ -51,6 +57,10 @@ while [[ $# -gt 0 ]]; do
             CONTAINER="$2"
             shift 2
             ;;
+        --native)
+            NATIVE=true
+            shift
+            ;;
         --rpcserver)
             RPCSERVER="$2"
             shift 2
@@ -68,15 +78,20 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Export credentials bundle from a running signer."
             echo ""
-            echo "Options:"
-            echo "  --network NETWORK      Bitcoin network (default: mainnet)"
-            echo "  --lnddir DIR           Signer lnd data directory (default: ~/.lnd-signer)"
-            echo "  --rpc-port PORT        Signer RPC port (default: 10012)"
-            echo "  --output DIR           Output directory (default: ~/.lnget/signer/credentials-bundle)"
-            echo "  --container NAME       Export from lnd running inside a Docker container"
+            echo "Connection options:"
+            echo "  --container NAME       Export from signer in a Docker container"
+            echo "  --native               Export from local signer process"
             echo "  --rpcserver HOST:PORT  Connect to a remote signer node"
             echo "  --tlscertpath PATH     TLS certificate for remote connection (also bundled)"
             echo "  --macaroonpath PATH    Macaroon for remote authentication (also bundled)"
+            echo ""
+            echo "Options:"
+            echo "  --network NETWORK      Bitcoin network (default: testnet)"
+            echo "  --lnddir DIR           Signer lnd data directory (default: ~/.lnd-signer)"
+            echo "  --rpc-port PORT        Signer RPC port (default: 10012)"
+            echo "  --output DIR           Output directory (default: ~/.lnget/signer/credentials-bundle)"
+            echo ""
+            echo "Container auto-detection: looks for litd-signer container."
             exit 0
             ;;
         *)
@@ -85,6 +100,20 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Auto-detect container if not native, no container, and no remote.
+if [ "$NATIVE" = false ] && [ -z "$CONTAINER" ] && [ -z "$RPCSERVER" ]; then
+    if command -v docker &>/dev/null; then
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'litd-signer'; then
+            CONTAINER="litd-signer"
+        fi
+    fi
+
+    # If no container found, fall back to native.
+    if [ -z "$CONTAINER" ]; then
+        NATIVE=true
+    fi
+fi
 
 # Apply default lnddir if not set.
 if [ -z "$LND_SIGNER_DIR" ]; then
@@ -100,7 +129,13 @@ BUNDLE_DIR="${OUTPUT_DIR:-$LNGET_SIGNER_DIR/credentials-bundle}"
 echo "=== Exporting Credentials Bundle ==="
 echo ""
 echo "Network:    $NETWORK"
-echo "Signer dir: $LND_SIGNER_DIR"
+if [ -n "$CONTAINER" ]; then
+    echo "Container:  $CONTAINER"
+elif [ -n "$RPCSERVER" ]; then
+    echo "Remote:     $RPCSERVER"
+else
+    echo "Signer dir: $LND_SIGNER_DIR"
+fi
 echo "Output:     $BUNDLE_DIR"
 echo ""
 
