@@ -20,10 +20,15 @@ skills/aperture/scripts/install.sh
 # 2. Generate config (connects to local lnd)
 skills/aperture/scripts/setup.sh
 
-# 3. Start aperture
+# 3. Ensure invoice.macaroon exists (required for L402 invoice creation)
+#    If not present, bake one with the macaroon-bakery skill:
+skills/macaroon-bakery/scripts/bake.sh --role invoice-only \
+    --save-to ~/.lnd/data/chain/bitcoin/mainnet/invoice.macaroon
+
+# 4. Start aperture
 skills/aperture/scripts/start.sh
 
-# 4. Test with lnget
+# 5. Test with lnget
 lnget -k --no-pay https://localhost:8081/api/test
 ```
 
@@ -117,6 +122,23 @@ skills/aperture/scripts/stop.sh
 ## Configuration
 
 Config file: `~/.aperture/aperture.yaml`
+
+### Invoice Macaroon Requirement
+
+Aperture requires `invoice.macaroon` in the configured `macdir` to create
+Lightning invoices for L402 challenges. This is **not** the same as
+`admin.macaroon`. If the macaroon is missing, aperture will fail to start or
+will return errors when clients request paid resources.
+
+To bake an invoice macaroon with the macaroon-bakery skill:
+
+```bash
+skills/macaroon-bakery/scripts/bake.sh --role invoice-only \
+    --save-to ~/.lnd/data/chain/bitcoin/mainnet/invoice.macaroon
+```
+
+The `setup.sh` script will warn you if `invoice.macaroon` is not found at the
+expected path.
 
 ### Minimal Agent Configuration
 
