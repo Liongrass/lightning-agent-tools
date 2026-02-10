@@ -108,17 +108,19 @@ the network graph. See [MCP Server](docs/mcp-server.md) for details.
 
 ### Option B: Full Commerce Stack
 
-Run your own node and start buying or selling resources over Lightning.
+Run your own node and start buying or selling resources over Lightning. Docker
+is the default deployment method — `install.sh` pulls a container image and
+`start-lnd.sh` launches it via Docker Compose.
 
 ```bash
 git clone https://github.com/lightninglabs/lightning-agent-kit.git
 cd lightning-agent-kit
 
-# Install components
+# Install components (pulls Docker images by default; --source to build natively)
 skills/lnd/scripts/install.sh
 skills/lnget/scripts/install.sh
 
-# Create and start a node
+# Create and start a node (runs in a Docker container)
 skills/lnd/scripts/create-wallet.sh --mode standalone
 skills/lnd/scripts/start-lnd.sh
 
@@ -128,6 +130,10 @@ lnget config init
 # Fetch a paid resource
 lnget --max-cost 500 https://api.example.com/data.json
 ```
+
+All wrapper scripts (`start-lnd.sh`, `stop-lnd.sh`, `lncli.sh`) auto-detect
+Docker containers. Pass `--native` to any script to use a locally built binary
+instead.
 
 For the full walkthrough including wallet funding, channel management, and
 hosting your own paid endpoints, see [Commerce](docs/commerce.md).
@@ -226,10 +232,14 @@ paths, and troubleshooting.
 
 ## Prerequisites
 
-- **Go 1.21+** for building lnd, lncli, lnget, and the MCP server from source
-- **Docker** (optional) for container-based lnd nodes
+- **Docker** for running lnd/litd containers (the default deployment method)
+- **Go 1.21+** only needed when building from source (`install.sh --source`) or
+  for lnget and the MCP server
 - **jq** for JSON processing in shell scripts
 - **Lightning Terminal** (optional) for generating LNC pairing phrases
+
+Container image versions are pinned in `versions.env` at the repository root and
+can be overridden via environment variables.
 
 ## License
 

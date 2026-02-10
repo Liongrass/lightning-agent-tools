@@ -62,17 +62,21 @@ HTTP requests with automatic L402 handling.
 ### Install
 
 ```bash
+# Pulls Docker images by default; add --source to build from source.
 skills/lnd/scripts/install.sh
 skills/lnget/scripts/install.sh
 ```
 
 ### Create and Start the Node
 
+All commands below auto-detect Docker and launch containers. Pass `--native` to
+any script to use a locally built binary instead.
+
 ```bash
 # Create a wallet (standalone mode for testing, watch-only for production)
 skills/lnd/scripts/create-wallet.sh --mode standalone
 
-# Start lnd
+# Start lnd (launches a litd Docker container)
 skills/lnd/scripts/start-lnd.sh
 
 # Verify it's running
@@ -154,7 +158,7 @@ skills/aperture/scripts/install.sh
 
 ```bash
 skills/lnd/scripts/create-wallet.sh --mode standalone
-skills/lnd/scripts/start-lnd.sh
+skills/lnd/scripts/start-lnd.sh                            # Docker container by default
 skills/lnd/scripts/lncli.sh getinfo
 ```
 
@@ -189,6 +193,10 @@ skills/aperture/scripts/start.sh
 
 The `--insecure` flag disables TLS (suitable for development). For production,
 configure TLS with Let's Encrypt (`--autocert`) or your own certificates.
+
+For regtest testing, a Docker Compose file at
+`skills/aperture/templates/docker-compose-aperture.yml` runs aperture alongside
+a busybox backend on the same Docker network as the litd regtest stack.
 
 Aperture's config (`~/.aperture/aperture.yaml`) defines which paths are
 protected and how much they cost:
@@ -345,4 +353,5 @@ public-facing endpoints.
 ```bash
 skills/aperture/scripts/stop.sh
 skills/lnd/scripts/stop-lnd.sh
+skills/lnd/scripts/stop-lnd.sh --clean                     # also remove Docker volumes
 ```

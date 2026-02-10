@@ -108,7 +108,9 @@ setup walkthrough.
 The remote signer splits a Lightning node into two processes. The signer runs
 lnd with the seed and private keys but does not connect to the peer-to-peer
 network, does not route payments, and does not manage channels. The watch-only
-node does everything else.
+node does everything else. By default, both run in Docker containers
+(`litd-signer` and `litd` respectively); pass `--native` to scripts for local
+binary mode.
 
 ### Credential Bundle
 
@@ -164,6 +166,10 @@ For production deployments:
   signer.
 
   ```bash
+  # Container mode (auto-detects litd-signer)
+  skills/macaroon-bakery/scripts/bake.sh --role signer-only --container litd-signer
+
+  # Native mode
   skills/macaroon-bakery/scripts/bake.sh --role signer-only \
       --rpc-port 10012 --lnddir ~/.lnd-signer
   ```
@@ -251,7 +257,9 @@ Before deploying the kit with real funds:
    derivation permissions on the signer.
 
 4. **Firewall the signer.** Restrict port 10012 to the watch-only node's IP.
-   Restrict port 10013 (REST) to localhost.
+   In container mode, port 10013 (REST) is bound to `0.0.0.0` for Docker
+   networking but is only host-mapped during wallet setup. In native mode,
+   `setup-signer.sh` rebinds REST to `localhost`.
 
 5. **Secure credential files.** Verify that `wallet-password.txt`, `seed.txt`,
    and all `.macaroon` files have mode 0600. The kit's scripts set this
@@ -281,3 +289,10 @@ Every credential and secret file the kit manages:
 | `~/.lnd-signer/data/chain/bitcoin/<network>/admin.macaroon` | 0600 | Signer | Signer admin macaroon |
 | `~/.lnget/tokens/<domain>/` | 0700 | Agent | Cached L402 tokens |
 | `~/.aperture/aperture.yaml` | 0600 | Seller | Aperture config (may contain credentials) |
+
+**Container mode note:** In container deployments, daemon data directories
+(`~/.lnd/`, `~/.lnd-signer/`) live inside Docker volumes (`litd-data`,
+`signer-data`) rather than on the host filesystem. The host-side credential
+files under `~/.lnget/` remain the same in both modes. Use `docker cp` or
+`export-credentials.sh --container` to extract macaroons and TLS certs from
+running containers.
