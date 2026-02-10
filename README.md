@@ -1,121 +1,235 @@
-# Lightning Agent Kit
+# Lightning Agent Tools
 
-A Claude Code plugin that gives AI agents the skills to operate on the Lightning
-Network — run nodes, send/receive payments, bake scoped credentials, and host
-paid API endpoints.
+AI agents can read documentation, write code, and orchestrate complex workflows,
+but they can't easily pay for things. Traditional payment rails require
+government IDs, bank accounts, and manual enrollment, none of which work for
+autonomous software. Lightning Agent Tools bridges this gap by giving agents
+native access to the [Lightning Network](https://lightning.network), a
+decentralized payment protocol capable of instant, high-volume transactions with
+no identity requirements.
 
-## Skills
+The toolkit consists of seven composable skills and an MCP server. Together they
+let an agent run a Lightning node, pay for resources on the web using the
+[L402](https://docs.lightning.engineering/the-lightning-network/l402) protocol,
+host its own paid API endpoints, manage scoped credentials, and query node state
+through the Model Context Protocol. The skills work with any agent framework
+that can execute shell commands: [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview),
+[Codex](https://openai.com/index/codex/), or your own tooling. The MCP server
+follows the [Model Context Protocol](https://modelcontextprotocol.io) standard
+and works with any compatible client. The security model defaults to a remote
+signer architecture that keeps private keys on a separate machine, away from the
+agent's runtime environment.
 
-| Skill | Description |
-|-------|-------------|
-| **lnd** | Install and run an lnd Lightning node. Defaults to watch-only mode with remote signer. |
-| **lightning-security-module** | Set up a remote signer node that holds private keys on a separate machine. |
-| **macaroon-bakery** | Bake least-privilege macaroons for scoped agent access. |
-| **lnget** | Lightning-native HTTP client with automatic L402 payment support. |
-| **aperture** | L402 reverse proxy for hosting paid API endpoints. |
-| **mcp-lnc** | MCP server for Lightning Node Connect — connects AI assistants to lnd via encrypted WebSocket tunnels. |
-| **commerce** | End-to-end agent commerce workflow (lnd + lnget + aperture). |
+## How It Works
+
+```mermaid
+graph TD
+    CC["Your Agent"] --> Skills
+
+    subgraph Skills["Skills"]
+        lnd["lnd<br/><i>run a Lightning node</i>"]
+        lsm["lightning-security-module<br/><i>remote signer</i>"]
+        mb["macaroon-bakery<br/><i>scoped credentials</i>"]
+        lg["lnget<br/><i>L402 HTTP client</i>"]
+        ap["aperture<br/><i>L402 reverse proxy</i>"]
+        mcp["mcp-lnc<br/><i>MCP server</i>"]
+        com["commerce<br/><i>buyer/seller workflows</i>"]
+    end
+
+    subgraph Runtime["Daemons & Tools"]
+        lnd_d["lnd daemon"]
+        signer_d["lnd signer"]
+        aperture_d["aperture proxy"]
+        lnget_d["lnget CLI"]
+        mcp_d["mcp-lnc-server"]
+    end
+
+    lnd --> lnd_d
+    lsm --> signer_d
+    lg --> lnget_d
+    ap --> aperture_d
+    mcp --> mcp_d
+
+    lnd_d <-->|"remote signing"| signer_d
+    lnget_d -->|"pays invoices"| lnd_d
+    aperture_d -->|"generates invoices"| lnd_d
+    mcp_d <-->|"LNC tunnel"| lnd_d
+
+    com -.-> lnd
+    com -.-> lg
+    com -.-> ap
+```
+
+The skills break down into three functional groups:
+
+**Payment infrastructure.** The `lnd` skill runs a Lightning node using the
+Neutrino light client (no full Bitcoin node required) with SQLite storage. The
+`lightning-security-module` sets up a remote signer to hold private keys on a
+separate machine. The `macaroon-bakery` bakes least-privilege credentials so
+agents only get the permissions they need.
+
+**Commerce.** The `lnget` skill installs a command-line HTTP client that handles
+L402 payments automatically. When it hits a 402 response, it pays the embedded
+Lightning invoice, caches the token, and retries. The `aperture` skill runs an
+L402 reverse proxy that gates access to a backend service behind Lightning
+invoices. The `commerce` skill ties these together into buyer and seller
+workflows.
+
+**Node access.** The `mcp-lnc` skill builds and configures an MCP server that
+connects to a Lightning node via Lightning Node Connect (encrypted WebSocket
+tunnels, pairing-phrase auth, no stored credentials). It exposes 18 read-only
+tools for querying node state and works with any MCP-compatible client.
 
 ## Quick Start
 
-### Install the plugin
+### Option A: Read-Only Node Access (MCP)
 
-Clone this repo and point Claude Code at it:
+The fastest path to interacting with a Lightning node. Requires a node running
+[Lightning Terminal](https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/get-lit)
+and a pairing phrase.
 
 ```bash
 git clone https://github.com/lightninglabs/lightning-agent-kit.git
 cd lightning-agent-kit
-```
 
-Claude Code discovers skills via `.claude/skills/` automatically.
-
-### Example prompts
-
-```
-Get node info for sam in Docker regtest
-```
-
-```
-Bake a pay-only macaroon on zane in Docker regtest
-```
-
-```
-Export credentials from my signer and bake a signer-only macaroon
-```
-
-```
-Connect to my remote node at host:10009 and check the wallet balance
-```
-
-### Docker containers
-
-All scripts support `--container` for lnd nodes running in Docker:
-
-```bash
-skills/lnd/scripts/lncli.sh --container sam --network regtest getinfo
-skills/macaroon-bakery/scripts/bake.sh --role pay-only --container sam --network regtest
-```
-
-### Remote nodes
-
-All scripts support `--rpcserver`, `--tlscertpath`, and `--macaroonpath` for
-remote lnd nodes (e.g., Voltage):
-
-```bash
-skills/lnd/scripts/lncli.sh \
-    --rpcserver your-node.voltageapp.io:10009 \
-    --tlscertpath ~/tls.cert \
-    --macaroonpath ~/admin.macaroon \
-    --network mainnet getinfo
-```
-
-## Architecture
-
-```
-lightning-agent-kit/
-├── .claude/skills/          # Symlinks for Claude Code skill discovery
-├── .claude-plugin/          # Plugin metadata
-├── mcp-server/              # MCP server for Lightning Node Connect
-└── skills/
-    ├── lnd/                 # Lightning node operations
-    ├── lightning-security-module/  # Remote signer setup
-    ├── macaroon-bakery/     # Credential scoping
-    ├── mcp-lnc/             # MCP server build & config
-    ├── lnget/               # L402 HTTP client
-    ├── aperture/            # L402 reverse proxy
-    └── commerce/            # Full commerce workflow
-```
-
-## Security Model
-
-The default setup uses lnd's **remote signer architecture**:
-
-- **Signer machine** holds private keys, never routes payments
-- **Agent machine** runs a watch-only lnd node, delegates signing
-- Even if the agent machine is compromised, keys cannot be extracted
-
-For credentials, use the **macaroon-bakery** skill to bake least-privilege
-macaroons — never give agents `admin.macaroon` in production.
-
-## MCP Server
-
-The `mcp-server/` directory contains an MCP server that connects to lnd via
-Lightning Node Connect (LNC). This enables AI assistants to interact with
-Lightning nodes through the Model Context Protocol.
-
-Use the `mcp-lnc` skill to build, configure, and wire it into Claude Code:
-
-```bash
 skills/mcp-lnc/scripts/install.sh
-skills/mcp-lnc/scripts/configure.sh
-skills/mcp-lnc/scripts/setup-claude-config.sh
+skills/mcp-lnc/scripts/configure.sh --production
+skills/mcp-lnc/scripts/setup-claude-config.sh --scope project
 ```
+
+Restart Claude Code, then:
+
+```
+Connect to my Lightning node with pairing phrase: "word1 word2 ... word10"
+```
+
+The agent can now query balances, list channels, decode invoices, and inspect
+the network graph. See [MCP Server](docs/mcp-server.md) for details.
+
+### Option B: Full Commerce Stack
+
+Run your own node and start buying or selling resources over Lightning.
+
+```bash
+git clone https://github.com/lightninglabs/lightning-agent-kit.git
+cd lightning-agent-kit
+
+# Install components
+skills/lnd/scripts/install.sh
+skills/lnget/scripts/install.sh
+
+# Create and start a node
+skills/lnd/scripts/create-wallet.sh --mode standalone
+skills/lnd/scripts/start-lnd.sh
+
+# Configure lnget
+lnget config init
+
+# Fetch a paid resource
+lnget --max-cost 500 https://api.example.com/data.json
+```
+
+For the full walkthrough including wallet funding, channel management, and
+hosting your own paid endpoints, see [Commerce](docs/commerce.md).
+
+### Natural Language
+
+Agents with skill discovery (like Claude Code) pick up the skills automatically.
+You can interact through natural language:
+
+```
+Install Lightning Agent Tools and set up a Lightning node with
+remote signer so I can start paying for L402 APIs with lnget.
+```
+
+```
+Bake a pay-only macaroon on my regtest node
+```
+
+```
+Export credentials from my signer and set up a watch-only node
+```
+
+## Skills
+
+| Skill | What it does |
+|-------|-------------|
+| **lnd** | Installs and operates an lnd Lightning node. Neutrino light client, SQLite storage. Defaults to watch-only mode with remote signer. |
+| **lightning-security-module** | Sets up a remote signer node on a separate machine. Holds all private keys; the agent machine has none. |
+| **macaroon-bakery** | Bakes scoped macaroons (pay-only, invoice-only, read-only, channel-admin, signer-only) for least-privilege access. |
+| **lnget** | Command-line HTTP client with automatic L402 payment. Pays Lightning invoices on 402 responses, caches tokens, retries. |
+| **aperture** | L402 reverse proxy. Sits in front of a backend service, issues invoices, validates paid tokens, proxies authorized requests. |
+| **mcp-lnc** | Builds and configures the MCP server for LNC-based read-only access to a Lightning node. 18 tools, no stored credentials. |
+| **commerce** | Meta-skill orchestrating lnd + lnget + aperture for end-to-end buyer/seller workflows. |
+
+All scripts support `--container` for Docker-based lnd nodes and `--rpcserver`
+/ `--tlscertpath` / `--macaroonpath` for remote nodes.
+
+## Security
+
+The kit provides three tiers of access with increasing trust requirements:
+
+```mermaid
+graph LR
+    subgraph T1["Tier 1: Watch-Only + Remote Signer"]
+        A1["Agent: no keys"]
+        S1["Signer: holds keys"]
+        A1 ---|"gRPC"| S1
+    end
+
+    subgraph T2["Tier 2: Standalone"]
+        A2["Agent: keys on disk (0600)"]
+    end
+
+    subgraph T3["Tier 3: Read-Only via LNC"]
+        A3["Agent: no credentials on disk"]
+    end
+
+    T1 --- P1["Production"]
+    T2 --- P2["Testing"]
+    T3 --- P3["Observation"]
+```
+
+**Tier 1 (default)** splits the node into a watch-only instance on the agent
+machine and a signer on a separate machine. The agent can route payments and
+manage channels but cannot sign transactions. Keys never leave the signer.
+
+**Tier 2** stores keys locally. Appropriate for testnet, regtest, and small-value
+mainnet experiments.
+
+**Tier 3** uses the MCP server with LNC. No credentials are written to disk;
+the pairing phrase is handled in memory and ephemeral ECDSA keypairs are
+generated per session.
+
+For all tiers, use the `macaroon-bakery` to scope credentials. A buyer agent
+gets a `pay-only` macaroon; a monitoring agent gets `read-only`. Never hand out
+`admin.macaroon` in production.
+
+See [Security](docs/security.md) for threat models, hardening, and the
+production checklist.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | System design, component map, plugin discovery, data flows |
+| [Security](docs/security.md) | Three-tier security model, remote signer, macaroon scoping, production checklist |
+| [L402 and lnget](docs/l402-and-lnget.md) | The L402 protocol, lnget usage, spending controls, token caching |
+| [MCP Server](docs/mcp-server.md) | LNC mechanics, setup walkthrough, 18-tool reference, configuration |
+| [Commerce](docs/commerce.md) | Buyer and seller agent setup, the commerce loop, cost management |
+| [Two-Agent Setup](docs/two-agent-setup.md) | Signer agent + node agent walkthrough for production key isolation |
+| [Quick Reference](docs/quickref.md) | Every command in one place |
+
+Each skill also has a detailed `SKILL.md` in its directory under `skills/` with
+operational reference material: script options, configuration templates, file
+paths, and troubleshooting.
 
 ## Prerequisites
 
-- **Go 1.21+** for building lnd/lncli from source
+- **Go 1.21+** for building lnd, lncli, lnget, and the MCP server from source
 - **Docker** (optional) for container-based lnd nodes
-- **jq** for JSON processing in scripts
+- **jq** for JSON processing in shell scripts
+- **Lightning Terminal** (optional) for generating LNC pairing phrases
 
 ## License
 
