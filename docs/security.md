@@ -100,7 +100,7 @@ payments, open channels, or modify any node state.
 node's state for the duration of the active LNC session. Once the session is
 closed, no credentials remain to reconnect.
 
-**Setup:** Use the `mcp-lnc` skill. See [MCP Server](mcp-server.md) for the
+**Setup:** Use the `lightning-mcp-server` skill. See [MCP Server](mcp-server.md) for the
 setup walkthrough.
 
 ## Remote Signer in Depth

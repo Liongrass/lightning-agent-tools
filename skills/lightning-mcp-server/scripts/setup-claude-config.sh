@@ -12,7 +12,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MCP_SERVER_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)/mcp-server"
+MCP_SERVER_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)/lightning-mcp-server"
 
 SCOPE="project"
 USE_DOCKER=false
@@ -108,7 +108,7 @@ if [ "$USE_DOCKER" = true ]; then
                    "--env", "LNC_MAILBOX_SERVER",
                    "--env", "LNC_DEV_MODE",
                    "--env", "LNC_INSECURE",
-                   "mcp-lnc-server"],
+                   "lightning-mcp-server"],
             env: {
                 LNC_MAILBOX_SERVER: $mailbox,
                 LNC_DEV_MODE: $devmode,
@@ -117,12 +117,12 @@ if [ "$USE_DOCKER" = true ]; then
         }')
 else
     # Check that binary exists.
-    BINARY_PATH=$(command -v mcp-lnc-server 2>/dev/null || echo "")
+    BINARY_PATH=$(command -v lightning-mcp-server 2>/dev/null || echo "")
     if [ -z "$BINARY_PATH" ]; then
-        echo "Warning: mcp-lnc-server not found on PATH." >&2
+        echo "Warning: lightning-mcp-server not found on PATH." >&2
         echo "Run install.sh first, or use --docker." >&2
         echo ""
-        BINARY_PATH="mcp-lnc-server"
+        BINARY_PATH="lightning-mcp-server"
     fi
 
     MCP_ENTRY=$(jq -n \

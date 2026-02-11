@@ -24,7 +24,7 @@ firewall configuration and no port forwarding.
 
 ```mermaid
 graph LR
-    CC["Claude Code<br/>(stdio)"] <--> MCP["mcp-lnc-server"]
+    CC["Claude Code<br/>(stdio)"] <--> MCP["lightning-mcp-server"]
     MCP <-->|"encrypted<br/>WebSocket"| MB["Mailbox Relay<br/>mailbox.terminal.lightning.today"]
     MB <-->|"encrypted<br/>WebSocket"| LND["lnd + Lightning Terminal"]
 
@@ -49,23 +49,23 @@ Three scripts handle the full setup:
 ### 1. Build the server
 
 ```bash
-skills/mcp-lnc/scripts/install.sh
+skills/lightning-mcp-server/scripts/install.sh
 ```
 
-This compiles `mcp-lnc-server` from the `mcp-server/` directory in the
+This compiles `lightning-mcp-server` from the `lightning-mcp-server/` directory in the
 repository and installs it to `$GOPATH/bin`. Requires Go 1.24+.
 
 ### 2. Configure the environment
 
 ```bash
 # Production (Lightning Terminal on mainnet)
-skills/mcp-lnc/scripts/configure.sh --production
+skills/lightning-mcp-server/scripts/configure.sh --production
 
 # Development (local regtest)
-skills/mcp-lnc/scripts/configure.sh --dev --mailbox aperture:11110
+skills/lightning-mcp-server/scripts/configure.sh --dev --mailbox aperture:11110
 ```
 
-This generates `mcp-server/.env` with the following variables:
+This generates `lightning-mcp-server/.env` with the following variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -78,10 +78,10 @@ This generates `mcp-server/.env` with the following variables:
 
 ```bash
 # Project-level (recommended)
-skills/mcp-lnc/scripts/setup-claude-config.sh --scope project
+skills/lightning-mcp-server/scripts/setup-claude-config.sh --scope project
 
 # Global
-skills/mcp-lnc/scripts/setup-claude-config.sh --scope global
+skills/lightning-mcp-server/scripts/setup-claude-config.sh --scope global
 ```
 
 This adds the MCP server to `.mcp.json` (project) or `~/.claude.json` (global).
@@ -93,7 +93,7 @@ The resulting configuration looks like:
 {
   "mcpServers": {
     "lnc": {
-      "command": "mcp-lnc-server",
+      "command": "lightning-mcp-server",
       "env": {
         "LNC_MAILBOX_SERVER": "mailbox.terminal.lightning.today:443"
       }
@@ -195,7 +195,7 @@ appropriate macaroons (scoped via `macaroon-bakery`).
 
 ## Server Internals
 
-The MCP server is a Go application in the `mcp-server/` directory. It runs on
+The MCP server is a Go application in the `lightning-mcp-server/` directory. It runs on
 stdio transport. The MCP client launches it as a subprocess and communicates over
 stdin/stdout.
 
@@ -214,7 +214,7 @@ connection is closed and all services are reset.
 ### Building from Source
 
 ```bash
-cd mcp-server
+cd lightning-mcp-server
 make build           # debug binary
 make build-release   # optimized binary
 make install         # install to $GOPATH/bin
@@ -226,7 +226,7 @@ make check           # run fmt, lint, mod-check, and unit tests
 For containerized deployment:
 
 ```bash
-cd mcp-server
+cd lightning-mcp-server
 make docker-build
 ```
 
@@ -242,7 +242,7 @@ The Docker configuration in `.mcp.json`:
         "--env", "LNC_MAILBOX_SERVER",
         "--env", "LNC_DEV_MODE",
         "--env", "LNC_INSECURE",
-        "mcp-lnc-server"
+        "lightning-mcp-server"
       ]
     }
   }
@@ -255,7 +255,7 @@ For local regtest environments, enable development mode to skip TLS verification
 and connect to a local mailbox:
 
 ```bash
-skills/mcp-lnc/scripts/configure.sh --dev --mailbox localhost:11110 --insecure
+skills/lightning-mcp-server/scripts/configure.sh --dev --mailbox localhost:11110 --insecure
 ```
 
 This sets `LNC_DEV_MODE=true` and `LNC_INSECURE=true` in the `.env` file.
@@ -278,8 +278,8 @@ production, this is `mailbox.terminal.lightning.today:443`. For local
 development, ensure the local mailbox is running.
 
 **"TLS handshake failure"**: For local regtest, enable insecure mode:
-`skills/mcp-lnc/scripts/configure.sh --dev --insecure`
+`skills/lightning-mcp-server/scripts/configure.sh --dev --insecure`
 
 **Tools not appearing in Claude Code**: Restart Claude Code after running
 `setup-claude-config.sh`. Verify the binary is on your PATH with
-`which mcp-lnc-server`.
+`which lightning-mcp-server`.

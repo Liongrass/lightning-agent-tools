@@ -1,5 +1,5 @@
 ---
-name: mcp-lnc
+name: lightning-mcp-server
 description: Build and configure the MCP server for Lightning Node Connect (LNC). Connects AI assistants to lnd nodes via encrypted WebSocket tunnels using pairing phrases — no direct network access or TLS certs needed. Read-only by default (18 tools for querying node state, channels, payments, invoices, peers, on-chain data).
 ---
 
@@ -18,13 +18,13 @@ node state but cannot send payments or modify channels.
 
 ```bash
 # 1. Build the MCP server binary
-skills/mcp-lnc/scripts/install.sh
+skills/lightning-mcp-server/scripts/install.sh
 
 # 2. Configure environment (mailbox server, dev mode, etc.)
-skills/mcp-lnc/scripts/configure.sh
+skills/lightning-mcp-server/scripts/configure.sh
 
 # 3. Add to Claude Code as an MCP server
-skills/mcp-lnc/scripts/setup-claude-config.sh
+skills/lightning-mcp-server/scripts/setup-claude-config.sh
 ```
 
 Then restart Claude Code. The `lnc_connect` tool will be available to connect
@@ -33,10 +33,10 @@ to any lnd node using a pairing phrase.
 ## How It Works
 
 ```
-Claude Code  <--stdio-->  mcp-lnc-server  <--LNC WebSocket-->  Mailbox  <-->  lnd
+Claude Code  <--stdio-->  lightning-mcp-server  <--LNC WebSocket-->  Mailbox  <-->  lnd
 ```
 
-1. Claude Code launches `mcp-lnc-server` as a subprocess (stdio transport)
+1. Claude Code launches `lightning-mcp-server` as a subprocess (stdio transport)
 2. Agent calls `lnc_connect` with a pairing phrase and password
 3. Server generates an ephemeral ECDSA keypair and opens an encrypted WebSocket
    tunnel through the mailbox relay
@@ -50,28 +50,28 @@ only credential, and it's handled in-memory only.
 
 ```bash
 # Build from source (requires Go 1.24+)
-skills/mcp-lnc/scripts/install.sh
+skills/lightning-mcp-server/scripts/install.sh
 
 # Verify
-mcp-lnc-server -version
+lightning-mcp-server -version
 ```
 
-The install script builds from the `mcp-server/` directory in this repo.
+The install script builds from the `lightning-mcp-server/` directory in this repo.
 
 ## Configuration
 
 ```bash
 # Generate .env with defaults
-skills/mcp-lnc/scripts/configure.sh
+skills/lightning-mcp-server/scripts/configure.sh
 
 # Production (mainnet via Lightning Terminal)
-skills/mcp-lnc/scripts/configure.sh --production
+skills/lightning-mcp-server/scripts/configure.sh --production
 
 # Development (local regtest)
-skills/mcp-lnc/scripts/configure.sh --dev --mailbox aperture:11110
+skills/lightning-mcp-server/scripts/configure.sh --dev --mailbox aperture:11110
 ```
 
-Configuration is stored in `mcp-server/.env`. Key settings:
+Configuration is stored in `lightning-mcp-server/.env`. Key settings:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -83,14 +83,14 @@ Configuration is stored in `mcp-server/.env`. Key settings:
 ## Claude Code Integration
 
 ```bash
-# Add mcp-lnc-server to Claude Code's MCP config
-skills/mcp-lnc/scripts/setup-claude-config.sh
+# Add lightning-mcp-server to Claude Code's MCP config
+skills/lightning-mcp-server/scripts/setup-claude-config.sh
 
 # Project-level config (current project only)
-skills/mcp-lnc/scripts/setup-claude-config.sh --scope project
+skills/lightning-mcp-server/scripts/setup-claude-config.sh --scope project
 
 # Global config (all projects)
-skills/mcp-lnc/scripts/setup-claude-config.sh --scope global
+skills/lightning-mcp-server/scripts/setup-claude-config.sh --scope global
 ```
 
 This adds the server to Claude Code's `.mcp.json` (project) or
@@ -105,7 +105,7 @@ Add to `.mcp.json` in your project root:
 {
   "mcpServers": {
     "lnc": {
-      "command": "mcp-lnc-server",
+      "command": "lightning-mcp-server",
       "env": {
         "LNC_MAILBOX_SERVER": "mailbox.terminal.lightning.today:443"
       }
@@ -126,7 +126,7 @@ Or run via Docker:
         "--env", "LNC_MAILBOX_SERVER",
         "--env", "LNC_DEV_MODE",
         "--env", "LNC_INSECURE",
-        "mcp-lnc-server"
+        "lightning-mcp-server"
       ]
     }
   }
@@ -227,12 +227,12 @@ Check that the mailbox server is reachable. For production, ensure
 ### "TLS handshake failure"
 If using a local regtest setup, enable dev mode and insecure mode:
 ```bash
-skills/mcp-lnc/scripts/configure.sh --dev --insecure
+skills/lightning-mcp-server/scripts/configure.sh --dev --insecure
 ```
 
 ### Tools not appearing in Claude Code
 Restart Claude Code after running `setup-claude-config.sh`. Check that
-`mcp-lnc-server` is on your `$PATH`:
+`lightning-mcp-server` is on your `$PATH`:
 ```bash
-which mcp-lnc-server
+which lightning-mcp-server
 ```

@@ -33,7 +33,7 @@ type Config struct {
 func LoadConfig() *Config {
 	cfg := &Config{
 		// Server defaults.
-		ServerName:    "lnc-mcp-server",
+		ServerName:    "lightning-mcp-server",
 		ServerVersion: "1.0.0",
 		Development:   getEnvBool("DEVELOPMENT", false),
 

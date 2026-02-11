@@ -6,7 +6,7 @@
 
 .DEFAULT_GOAL := build
 
-PKG := github.com/lightninglabs/lightning-agent-kit/mcp-server
+PKG := github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server
 
 GOTEST := GO111MODULE=on go test -v
 
@@ -76,8 +76,8 @@ lint: #? Run golangci-lint
 
 lint-docker: #? Run golangci-lint in Docker container
 	@$(call print, "Running linter in Docker container.")
-	docker build -f Dockerfile.lint -t mcp-lnc-lint .
-	docker run --rm mcp-lnc-lint
+	docker build -f Dockerfile.lint -t lightning-mcp-lint .
+	docker run --rm lightning-mcp-lint
 
 # =======
 # MODULES
@@ -98,11 +98,11 @@ mod-check: #? Verify modules are tidy
 
 build: #? Build debug binary
 	@$(call print, "Building MCP LNC server.")
-	$(GOBUILD) -tags="$(DEV_TAGS)" -o mcp-lnc-server $(LDFLAGS) .
+	$(GOBUILD) -tags="$(DEV_TAGS)" -o lightning-mcp-server $(LDFLAGS) .
 
 build-release: #? Build optimized release binary
 	@$(call print, "Building release MCP LNC server.")
-	$(GOBUILD) -o mcp-lnc-server $(LDFLAGS) .
+	$(GOBUILD) -o lightning-mcp-server $(LDFLAGS) .
 
 install: #? Install binary to GOPATH/bin
 	@$(call print, "Installing MCP LNC server.")
@@ -114,7 +114,7 @@ install: #? Install binary to GOPATH/bin
 
 clean: #? Remove build artifacts
 	@$(call print, "Cleaning build artifacts.")
-	rm -f mcp-lnc-server
+	rm -f lightning-mcp-server
 	rm -f coverage.out coverage.html
 
 # =======
@@ -130,11 +130,11 @@ check: fmt lint mod-check unit #? Run all checks
 
 docker-build: #? Build Docker image
 	@$(call print, "Building Docker image.")
-	docker build -t mcp-lnc-server .
+	docker build -t lightning-mcp-server .
 
 docker-run: #? Run Docker container
 	@$(call print, "Running Docker container.")
-	docker run --rm -p 8080:8080 mcp-lnc-server
+	docker run --rm -p 8080:8080 lightning-mcp-server
 
 # =======
 # HELP

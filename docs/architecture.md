@@ -26,7 +26,7 @@ graph TD
         mb["macaroon-bakery"]
         lnget_skill["lnget"]
         ap["aperture"]
-        mcp["mcp-lnc"]
+        mcp["lightning-mcp-server"]
         com["commerce"]
     end
 
@@ -34,7 +34,7 @@ graph TD
         lnd_daemon["litd (Lightning Terminal)<br/>HTTPS :8443 / gRPC :10009 / P2P :9735"]
         signer["lnd signer<br/>gRPC :10012"]
         aperture_daemon["aperture proxy<br/>HTTP :8081"]
-        mcp_server["mcp-lnc-server<br/>stdio"]
+        mcp_server["lightning-mcp-server<br/>stdio"]
     end
 
     subgraph External["External"]
@@ -96,7 +96,7 @@ to each skill's directory under `skills/`:
 ├── lnd → ../../skills/lnd
 ├── lnget → ../../skills/lnget
 ├── macaroon-bakery → ../../skills/macaroon-bakery
-└── mcp-lnc → ../../skills/mcp-lnc
+└── lightning-mcp-server → ../../skills/lightning-mcp-server
 ```
 
 Each skill directory contains a `SKILL.md` file with YAML frontmatter declaring
@@ -285,7 +285,7 @@ graph TD
 
 ## MCP Server
 
-The MCP server (`mcp-server/`) connects AI assistants to a Lightning node
+The MCP server (`lightning-mcp-server/`) connects AI assistants to a Lightning node
 through the [Model Context Protocol](https://modelcontextprotocol.io). It uses
 [Lightning Node Connect](https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/lightning-node-connect)
 (LNC) to reach the node, which means the assistant never needs direct network
@@ -299,7 +299,7 @@ authenticated by a 10-word pairing phrase generated in Lightning Terminal.
 ```mermaid
 sequenceDiagram
     participant CC as Claude Code
-    participant MCP as mcp-lnc-server
+    participant MCP as lightning-mcp-server
     participant MB as Mailbox Relay
     participant LND as lnd + Lightning Terminal
 
@@ -322,8 +322,8 @@ sequenceDiagram
 The server runs on stdio transport. The MCP client (Claude Code or any other
 MCP-compatible host) launches it as a subprocess and communicates over
 stdin/stdout. No HTTP server, no port binding. The server's Go implementation
-lives under `mcp-server/` and is built via
-`skills/mcp-lnc/scripts/install.sh`.
+lives under `lightning-mcp-server/` and is built via
+`skills/lightning-mcp-server/scripts/install.sh`.
 
 The server exposes 18 read-only tools organized into seven categories:
 Connection, Node, Channels, Invoices, Payments, Peers/Network, and On-Chain.
@@ -333,7 +333,7 @@ open channels, or change configuration. See [MCP Server](mcp-server.md) for the
 full tool reference.
 
 Internally, the server uses a service manager
-(`mcp-server/internal/services/manager.go`) that initializes one service per
+(`lightning-mcp-server/internal/services/manager.go`) that initializes one service per
 tool category and registers their tools with the MCP SDK. When `lnc_connect`
 is called, the manager creates a Lightning client via LNC and distributes it to
 all services. When `lnc_disconnect` is called, the connection is closed and the
@@ -407,7 +407,7 @@ managed by their respective daemons.
 | `~/.lnget/signer/credentials-bundle/` | security module | Exported credentials for agent |
 | `~/.lnget/config.yaml` | lnget | lnget client configuration |
 | `~/.lnget/tokens/<domain>/` | lnget | Cached L402 tokens per domain |
-| `mcp-server/.env` | mcp-lnc | MCP server environment config |
+| `lightning-mcp-server/.env` | lightning-mcp-server | MCP server environment config |
 
 ### Daemon Data (native mode: filesystem; container mode: Docker volumes)
 

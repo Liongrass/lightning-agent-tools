@@ -8,7 +8,7 @@ package client
 import (
 	"context"
 
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/interfaces"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/interfaces"
 	"github.com/lightningnetwork/lnd/lnrpc"
 )
 

@@ -9,10 +9,10 @@ package main
 import (
 	"context"
 
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/config"
-	lnccontext "github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/context"
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/logging"
-	"github.com/lightninglabs/lightning-agent-kit/mcp-server/internal/services"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/config"
+	lnccontext "github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/context"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/logging"
+	"github.com/lightninglabs/lightning-agent-kit/lightning-mcp-server/internal/services"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 )
