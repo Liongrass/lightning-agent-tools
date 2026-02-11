@@ -20,6 +20,34 @@ and works with any compatible client. The security model defaults to a remote
 signer architecture that keeps private keys on a separate machine, away from the
 agent's runtime environment.
 
+## Install
+
+**MCP server** (zero-install, any MCP client):
+
+```bash
+claude mcp add --transport stdio lnc -- npx -y @lightninglabs/lightning-mcp-server
+```
+
+**Full plugin** (all 7 skills via Claude Code):
+
+```bash
+claude plugin marketplace add lightninglabs/lightning-agent-tools
+claude plugin install lightning-agent-tools@lightninglabs
+```
+
+**From source** (requires Go 1.24+):
+
+```bash
+git clone https://github.com/lightninglabs/lightning-agent-tools.git
+cd lightning-agent-tools
+skills/lightning-mcp-server/scripts/install.sh
+skills/lightning-mcp-server/scripts/configure.sh --production
+skills/lightning-mcp-server/scripts/setup-claude-config.sh --scope project
+```
+
+See [Quick Start](#quick-start) below for detailed setup options including
+environment variables, regtest mode, and the full commerce stack.
+
 ## How It Works
 
 ```mermaid
@@ -128,10 +156,10 @@ plugin marketplace:
 
 ```bash
 # Add the marketplace (one-time)
-/plugin marketplace add lightninglabs/lightning-agent-tools
+claude plugin marketplace add lightninglabs/lightning-agent-tools
 
 # Install the plugin (gets all skills)
-/plugin install lightning-agent-tools@lightninglabs
+claude plugin install lightning-agent-tools@lightninglabs
 ```
 
 Or load locally for development:
@@ -167,7 +195,7 @@ Connect to my Lightning node with pairing phrase: "word1 word2 ... word10"
 The agent can now query balances, list channels, decode invoices, and inspect
 the network graph. See [MCP Server](docs/mcp-server.md) for details.
 
-### Option B: Full Commerce Stack
+### Option D: Full Commerce Stack
 
 Run your own node and start buying or selling resources over Lightning. Docker
 is the default deployment method — `install.sh` pulls a container image and
