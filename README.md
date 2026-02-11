@@ -82,15 +82,76 @@ tools for querying node state and works with any MCP-compatible client.
 
 ## Quick Start
 
-### Option A: Read-Only Node Access (MCP)
+### Option A: Zero-Install MCP via `claude mcp add`
 
-The fastest path to interacting with a Lightning node. Requires a node running
-[Lightning Terminal](https://docs.lightning.engineering/lightning-network-tools/lightning-terminal/get-lit)
-and a pairing phrase.
+Register the MCP server with Claude Code in one command — no Go toolchain or
+git clone required:
 
 ```bash
-git clone https://github.com/lightninglabs/lightning-agent-kit.git
-cd lightning-agent-kit
+claude mcp add --transport stdio lnc -- npx -y @lightninglabs/lightning-mcp-server
+```
+
+With a specific mailbox server:
+
+```bash
+claude mcp add --transport stdio \
+  --env LNC_MAILBOX_SERVER=mailbox.terminal.lightning.today:443 \
+  lnc -- npx -y @lightninglabs/lightning-mcp-server
+```
+
+For development/regtest:
+
+```bash
+claude mcp add --transport stdio \
+  --env LNC_MAILBOX_SERVER=localhost:11110 \
+  --env LNC_DEV_MODE=true \
+  --env LNC_INSECURE=true \
+  lnc -- npx -y @lightninglabs/lightning-mcp-server
+```
+
+Scope options: `--scope local` (default, just you), `--scope project` (shared
+via `.mcp.json`), `--scope user` (all your projects).
+
+Restart Claude Code, then:
+
+```
+Connect to my Lightning node with pairing phrase: "word1 word2 ... word10"
+```
+
+The agent can now query balances, list channels, decode invoices, and inspect
+the network graph. See [MCP Server](docs/mcp-server.md) for details.
+
+### Option B: Full Plugin with All Skills
+
+Install the complete plugin (all 7 skills + MCP server) via the Claude Code
+plugin marketplace:
+
+```bash
+# Add the marketplace (one-time)
+/plugin marketplace add lightninglabs/lightning-agent-tools
+
+# Install the plugin (gets all skills)
+/plugin install lightning-agent-tools@lightninglabs
+```
+
+Or load locally for development:
+
+```bash
+git clone https://github.com/lightninglabs/lightning-agent-tools.git
+claude --plugin-dir ./lightning-agent-tools
+```
+
+This gives Claude Code access to all skills: lnd node management, remote
+signer security, lnget L402 payments, Aperture proxy, macaroon bakery,
+MCP server integration, and commerce workflows.
+
+### Option C: Read-Only Node Access (from source)
+
+Build the MCP server from source. Requires Go 1.24+.
+
+```bash
+git clone https://github.com/lightninglabs/lightning-agent-tools.git
+cd lightning-agent-tools
 
 skills/lightning-mcp-server/scripts/install.sh
 skills/lightning-mcp-server/scripts/configure.sh --production
@@ -113,8 +174,8 @@ is the default deployment method — `install.sh` pulls a container image and
 `start-lnd.sh` launches it via Docker Compose.
 
 ```bash
-git clone https://github.com/lightninglabs/lightning-agent-kit.git
-cd lightning-agent-kit
+git clone https://github.com/lightninglabs/lightning-agent-tools.git
+cd lightning-agent-tools
 
 # Install components (pulls Docker images by default; --source to build natively)
 skills/lnd/scripts/install.sh
