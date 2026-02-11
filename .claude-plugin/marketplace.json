@@ -1,0 +1,36 @@
+{
+  "name": "lightninglabs",
+  "owner": {
+    "name": "Lightning Labs",
+    "email": "support@lightning.engineering"
+  },
+  "metadata": {
+    "description": "Lightning Network agent toolkit — MCP server, L402 payments, node operations, and composable skills for AI agents",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "lightning-agent-tools",
+      "source": ".",
+      "description": "Full Lightning Network agent toolkit with 7 composable skills: lnd node operations, remote signer security, L402 commerce with lnget and Aperture, scoped macaroon credentials, and MCP server integration via Lightning Node Connect.",
+      "version": "0.2.0",
+      "author": {
+        "name": "Lightning Labs"
+      },
+      "homepage": "https://github.com/lightninglabs/lightning-agent-tools",
+      "repository": "https://github.com/lightninglabs/lightning-agent-tools",
+      "license": "MIT",
+      "keywords": [
+        "lightning",
+        "bitcoin",
+        "lnd",
+        "l402",
+        "payments",
+        "mcp",
+        "lnc",
+        "agent"
+      ],
+      "category": "infrastructure"
+    }
+  ]
+}
