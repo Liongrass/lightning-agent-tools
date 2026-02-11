@@ -150,4 +150,4 @@ jobs:
       # the GitHub Actions environment and authenticates via id-token.
       # Provenance attestations are generated automatically.
       - name: Publish to npm
-        run: npm publish --access public
+        run: npm publish --access public --provenance
