@@ -4,8 +4,10 @@
 # Usage:
 #   docker-start.sh                          # Default (testnet, background)
 #   docker-start.sh --network mainnet        # Mainnet (real coins)
+#   docker-start.sh --regtest                # Regtest with bitcoind backend
 #   docker-start.sh --foreground             # Run in foreground (show logs)
 #   docker-start.sh --build                  # Rebuild before starting
+#   docker-start.sh --docker-network NAME    # Join an existing Docker network
 
 set -e
 
@@ -17,6 +19,7 @@ LIB_DIR="$SCRIPT_DIR/../../lib"
 DETACH=true
 BUILD=false
 CUSTOM_NETWORK=""
+DOCKER_NETWORK=""
 
 # Source pinned versions so compose files pick them up as env vars.
 if [ -f "$VERSIONS_FILE" ]; then
@@ -34,6 +37,14 @@ while [[ $# -gt 0 ]]; do
             CUSTOM_NETWORK="$2"
             shift 2
             ;;
+        --regtest)
+            CUSTOM_NETWORK="regtest"
+            shift
+            ;;
+        --docker-network)
+            DOCKER_NETWORK="$2"
+            shift 2
+            ;;
         --build)
             BUILD=true
             shift
@@ -48,9 +59,11 @@ while [[ $# -gt 0 ]]; do
             echo "Start the remote signer container."
             echo ""
             echo "Options:"
-            echo "  --network NET     Override network (testnet, mainnet, signet)"
-            echo "  --build           Rebuild images before starting"
-            echo "  --foreground, -f  Run in foreground (show logs)"
+            echo "  --network NET         Override network (testnet, mainnet, signet, regtest)"
+            echo "  --regtest             Shorthand for --network regtest"
+            echo "  --docker-network NET  Join an existing Docker network (e.g., regtest bitcoind)"
+            echo "  --build               Rebuild images before starting"
+            echo "  --foreground, -f      Run in foreground (show logs)"
             exit 0
             ;;
         *)
@@ -65,6 +78,8 @@ if [ -n "$CUSTOM_NETWORK" ]; then
     NETWORK="$CUSTOM_NETWORK"
 fi
 
+EFFECTIVE_NETWORK="${NETWORK:-testnet}"
+
 # --- Generate runtime config from template ---
 
 LNGET_LND_DIR="${LNGET_LND_DIR:-$HOME/.lnget/lnd}"
@@ -73,7 +88,7 @@ mkdir -p "$LNGET_LND_DIR"
 generate_lnd_config \
     "$TEMPLATE_DIR/signer-lnd.conf.template" \
     "$LNGET_LND_DIR/signer-lnd.conf" \
-    "${NETWORK:-testnet}" \
+    "$EFFECTIVE_NETWORK" \
     "${LND_DEBUG:-info}" \
     ""
 
@@ -85,7 +100,7 @@ cd "$TEMPLATE_DIR"
 
 echo "=== Starting signer container ==="
 echo "  Config:   $SIGNER_CONF_PATH"
-echo "  Network:  ${NETWORK:-testnet}"
+echo "  Network:  $EFFECTIVE_NETWORK"
 echo "  Image:    ${LND_IMAGE:-lightninglabs/lnd}:${LND_VERSION:-v0.20.0-beta}"
 echo ""
 
@@ -104,6 +119,19 @@ fi
 
 echo "Running: $CMD"
 eval "$CMD"
+
+# When running on regtest, connect the signer to the regtest Docker network
+# so it can reach bitcoind.
+if [ "$EFFECTIVE_NETWORK" = "regtest" ] && [ "$DETACH" = true ]; then
+    REGTEST_NETWORK="${DOCKER_NETWORK:-$(docker network ls --filter name=regtest --format '{{.Name}}' | head -1)}"
+    if [ -n "$REGTEST_NETWORK" ]; then
+        echo "Connecting signer to regtest network: $REGTEST_NETWORK"
+        docker network connect "$REGTEST_NETWORK" litd-signer 2>/dev/null || true
+    else
+        echo "Warning: No regtest Docker network found." >&2
+        echo "Start regtest bitcoind first, or use --docker-network to specify." >&2
+    fi
+fi
 
 if [ "$DETACH" = true ]; then
     echo ""

@@ -149,6 +149,29 @@ YAML
 
 echo "Config written to $CONFIG_FILE"
 echo ""
+
+# Warn if invoice.macaroon is missing (required for aperture to create invoices).
+if [ "$NO_AUTH" != true ]; then
+    INVOICE_MACAROON="$LND_MACDIR/invoice.macaroon"
+    if [ ! -f "$INVOICE_MACAROON" ]; then
+        echo "WARNING: invoice.macaroon not found at $INVOICE_MACAROON"
+        echo ""
+        echo "Aperture requires invoice.macaroon in the macdir to create invoices."
+        echo "Without it, aperture will fail to generate L402 challenges."
+        echo ""
+
+        BAKERY_SCRIPT="$SCRIPT_DIR/../../macaroon-bakery/scripts/bake.sh"
+        if [ -x "$BAKERY_SCRIPT" ]; then
+            echo "To bake one automatically:"
+            echo "  $BAKERY_SCRIPT --role invoice-only --save-to $INVOICE_MACAROON"
+        else
+            echo "To create one, use the macaroon-bakery skill:"
+            echo "  skills/macaroon-bakery/scripts/bake.sh --role invoice-only --save-to $INVOICE_MACAROON"
+        fi
+        echo ""
+    fi
+fi
+
 echo "Next steps:"
 echo "  1. Start a backend on port $SERVICE_PORT"
 echo "  2. Start aperture: skills/aperture/scripts/start.sh"

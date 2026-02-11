@@ -211,6 +211,7 @@ if [ -n "$ROLE" ]; then
                 "uri:/routerrpc.Router/SendPaymentV2"
                 "uri:/lnrpc.Lightning/DecodePayReq"
                 "uri:/lnrpc.Lightning/GetInfo"
+                "uri:/verrpc.Versioner/GetVersion"
             )
             ;;
         invoice-only)
@@ -220,6 +221,7 @@ if [ -n "$ROLE" ]; then
                 "uri:/lnrpc.Lightning/LookupInvoice"
                 "uri:/lnrpc.Lightning/ListInvoices"
                 "uri:/lnrpc.Lightning/GetInfo"
+                "uri:/verrpc.Versioner/GetVersion"
             )
             ;;
         read-only)
@@ -233,6 +235,7 @@ if [ -n "$ROLE" ]; then
                 "uri:/lnrpc.Lightning/ListInvoices"
                 "uri:/lnrpc.Lightning/GetNodeInfo"
                 "uri:/lnrpc.Lightning/GetChanInfo"
+                "uri:/verrpc.Versioner/GetVersion"
             )
             ;;
         channel-admin)
@@ -249,6 +252,7 @@ if [ -n "$ROLE" ]; then
                 "uri:/lnrpc.Lightning/ClosedChannels"
                 "uri:/lnrpc.Lightning/GetNodeInfo"
                 "uri:/lnrpc.Lightning/GetChanInfo"
+                "uri:/verrpc.Versioner/GetVersion"
             )
             ;;
         signer-only)
@@ -263,6 +267,7 @@ if [ -n "$ROLE" ]; then
                 "uri:/walletrpc.WalletKit/DeriveKey"
                 "uri:/walletrpc.WalletKit/DeriveNextKey"
                 "uri:/lnrpc.Lightning/GetInfo"
+                "uri:/verrpc.Versioner/GetVersion"
             )
             ;;
         *)
