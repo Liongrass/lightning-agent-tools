@@ -53,10 +53,10 @@ jobs:
       # the tarball so the npm postinstall script can extract it
       # without renaming.
       - name: Build binary
-        working-directory: mcp-server
+        working-directory: lightning-mcp-server
         run: |
           COMMIT=$(git describe --abbrev=40 --always --dirty)
-          PKG=github.com/lightninglabs/lightning-agent-kit/mcp-server
+          PKG=github.com/lightninglabs/lightning-agent-tools/lightning-mcp-server
           EXT=""
           if [ "${{ matrix.goos }}" = "windows" ]; then
             EXT=".exe"
@@ -70,7 +70,7 @@ jobs:
       # inside (lightning-mcp-server) so postinstall.js works on all
       # platforms without renaming.
       - name: Package tarball
-        working-directory: mcp-server
+        working-directory: lightning-mcp-server
         run: |
           if [ "${{ matrix.goos }}" = "windows" ]; then
             tar czf lightning-mcp-server-${{ matrix.sys }}.tar.gz \
@@ -83,7 +83,7 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: mcp-server/lightning-mcp-server-${{ matrix.sys }}.tar.gz
+          files: lightning-mcp-server/lightning-mcp-server-${{ matrix.sys }}.tar.gz
           fail_on_unmatched_files: true
 
   # After all platform binaries are uploaded, publish the npm package.

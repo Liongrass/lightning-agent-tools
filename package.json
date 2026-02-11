@@ -5,9 +5,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lightninglabs/lightning-agent-kit"
+    "url": "https://github.com/lightninglabs/lightning-agent-tools"
   },
-  "homepage": "https://github.com/lightninglabs/lightning-agent-kit#quick-start",
+  "homepage": "https://github.com/lightninglabs/lightning-agent-tools#quick-start",
   "keywords": [
     "lightning",
     "lightning-network",

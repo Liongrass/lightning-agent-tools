@@ -26,7 +26,7 @@ const PLATFORM_MAP = {
 };
 
 // REPO is the GitHub repository that hosts the release binaries.
-const REPO = "lightninglabs/lightning-agent-kit";
+const REPO = "lightninglabs/lightning-agent-tools";
 
 // BINARY_NAME is the name of the binary inside the release tarball.
 const BINARY_NAME = "lightning-mcp-server";
