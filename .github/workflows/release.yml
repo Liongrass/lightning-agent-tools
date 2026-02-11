@@ -12,8 +12,9 @@ env:
   GO_VERSION: "1.24.5"
 
 jobs:
-  # Cross-compile the MCP server binary for all supported platforms and
-  # attach them as release assets.
+  # Cross-compile the MCP server binary for all supported platforms.
+  # Each matrix job uploads its tarball as a GitHub Actions artifact;
+  # the release job collects them all and creates a single GH release.
   build:
     name: Build ${{ matrix.sys }}
     runs-on: ubuntu-latest
@@ -80,10 +81,32 @@ jobs:
               lightning-mcp-server
           fi
 
-      - name: Upload release asset
+      # Upload tarball as a GitHub Actions artifact so the release
+      # job can collect all platforms and create a single release.
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lightning-mcp-server-${{ matrix.sys }}
+          path: lightning-mcp-server/lightning-mcp-server-${{ matrix.sys }}.tar.gz
+
+  # Collect all platform tarballs and create a single GitHub Release.
+  # This avoids the race condition where parallel matrix jobs each try
+  # to create/finalize the same release simultaneously.
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: lightning-mcp-server/lightning-mcp-server-${{ matrix.sys }}.tar.gz
+          files: artifacts/*.tar.gz
           fail_on_unmatched_files: true
 
   # After all platform binaries are uploaded, publish the npm package.
@@ -95,7 +118,7 @@ jobs:
   publish-npm:
     name: Publish npm
     runs-on: ubuntu-latest
-    needs: build
+    needs: release
     permissions:
       contents: read
       id-token: write
