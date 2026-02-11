@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# This wrapper script is a placeholder that gets replaced by the actual
+# binary during npm postinstall. If you see this message, the postinstall
+# script did not run successfully.
+#
+# To fix this, try:
+#   npm rebuild @lightninglabs/lightning-mcp-server
+#
+# Or build from source:
+#   cd mcp-server && make build
+
+echo "Error: lightning-mcp-server binary not installed." >&2
+echo "Run 'npm rebuild @lightninglabs/lightning-mcp-server' or build from source." >&2
+exit 1

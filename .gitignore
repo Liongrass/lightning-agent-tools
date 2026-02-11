@@ -7,5 +7,10 @@ lightning-mcp-server/lightning-mcp-server
 lightning-mcp-server/coverage.out
 lightning-mcp-server/coverage.html
 
+# npm artifacts
+node_modules/
+bin/lightning-mcp-server
+!bin/lightning-mcp-server.placeholder
+
 # Credentials (never commit)
 *.macaroon
