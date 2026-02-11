@@ -82,6 +82,32 @@ Configuration is stored in `lightning-mcp-server/.env`. Key settings:
 
 ## Claude Code Integration
 
+### Option 1: `claude mcp add` (recommended)
+
+Register the MCP server with a single command — no build step required:
+
+```bash
+# Zero-install via npx (downloads pre-built binary)
+claude mcp add --transport stdio lnc -- npx -y @lightninglabs/lightning-mcp-server
+
+# With environment variables for production
+claude mcp add --transport stdio \
+  --env LNC_MAILBOX_SERVER=mailbox.terminal.lightning.today:443 \
+  lnc -- npx -y @lightninglabs/lightning-mcp-server
+
+# For development/regtest
+claude mcp add --transport stdio \
+  --env LNC_MAILBOX_SERVER=localhost:11110 \
+  --env LNC_DEV_MODE=true \
+  --env LNC_INSECURE=true \
+  lnc -- npx -y @lightninglabs/lightning-mcp-server
+```
+
+Scope options: `--scope local` (default, just you), `--scope project` (shared
+via `.mcp.json`), `--scope user` (all your projects).
+
+### Option 2: Setup script (from source)
+
 ```bash
 # Add lightning-mcp-server to Claude Code's MCP config
 skills/lightning-mcp-server/scripts/setup-claude-config.sh
@@ -97,9 +123,25 @@ This adds the server to Claude Code's `.mcp.json` (project) or
 `~/.claude.json` (global) configuration. After restarting Claude Code, the
 LNC tools will be available.
 
-### Manual Configuration
+### Option 3: Manual configuration
 
 Add to `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "lnc": {
+      "command": "npx",
+      "args": ["-y", "@lightninglabs/lightning-mcp-server"],
+      "env": {
+        "LNC_MAILBOX_SERVER": "mailbox.terminal.lightning.today:443"
+      }
+    }
+  }
+}
+```
+
+Or with a locally built binary:
 
 ```json
 {

@@ -1,0 +1,52 @@
+{
+  "name": "@lightninglabs/lightning-mcp-server",
+  "version": "0.2.0",
+  "description": "Lightning Network agent toolkit for Claude Code — MCP server, L402 payments, node operations, and 7 composable skills",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lightninglabs/lightning-agent-kit"
+  },
+  "homepage": "https://github.com/lightninglabs/lightning-agent-kit#quick-start",
+  "keywords": [
+    "lightning",
+    "lightning-network",
+    "lnc",
+    "l402",
+    "mcp",
+    "claude-code",
+    "bitcoin",
+    "lnd",
+    "aperture",
+    "agent"
+  ],
+  "bin": {
+    "lightning-mcp-server": "./bin/lightning-mcp-server"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "files": [
+    "bin/",
+    "skills/",
+    "docs/",
+    ".claude-plugin/",
+    ".claude/",
+    "postinstall.js",
+    "versions.env",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}
