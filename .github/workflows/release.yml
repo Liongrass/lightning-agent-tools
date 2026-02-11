@@ -143,11 +143,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
+          node-version: "24"
 
-      # Trusted publishing uses OIDC — npm CLI automatically detects
-      # the GitHub Actions environment and authenticates via id-token.
-      # Provenance attestations are generated automatically.
+      # Trusted publishing uses OIDC — npm exchanges the GitHub
+      # Actions id-token for a short-lived publish credential. We
+      # avoid setup-node's registry-url option because it writes an
+      # .npmrc auth entry that interferes with the OIDC flow.
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: |
+          npm config set registry https://registry.npmjs.org/
+          npm publish --access public --provenance
